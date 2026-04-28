@@ -839,12 +839,11 @@ func _refresh_creation_slider_ranges() -> void:
 		var r: Range = s as Range
 		var v: int = int(_creation_alloc.get(attr, floor_i))
 		var max_v: int = _creation_max_allow_for_attribute(attr)
-		r.set_block_signals(true)
 		r.min_value = float(floor_i)
 		r.max_value = float(max_v)
 		r.step = 1.0
-		r.value = float(v)
-		r.set_block_signals(false)
+		## Avoid re-entrant value_changed loops when syncing UI from allocations.
+		r.set_value_no_signal(float(v))
 
 
 func _refresh_creation_increment_buttons() -> void:
@@ -883,11 +882,12 @@ func _refresh_creation_alloc_ui() -> void:
 			ok.disabled = rem != 0 or not name_ok
 
 
-func _on_creation_slider_value_changed(attr: String, value: float) -> void:
+func _on_creation_slider_changed(slider: Range, attr: String, _unused_signal_arg: float) -> void:
+	## Read slider.value — Callable.bind attr + emitted float can confuse argument order at runtime.
 	var floor_i: int = _creation_balance_config().creation_attribute_floor
 	var old_v: int = int(_creation_alloc.get(attr, floor_i))
 	var max_v: int = _creation_max_allow_for_attribute(attr)
-	var new_v: int = clampi(int(round(value)), floor_i, max_v)
+	var new_v: int = clampi(int(round(slider.value)), floor_i, max_v)
 	if new_v != old_v:
 		_creation_alloc[attr] = new_v
 	_refresh_creation_alloc_ui()
@@ -989,7 +989,7 @@ func _ensure_creation_dialog() -> void:
 		slid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		slid.custom_minimum_size = Vector2(80, 0)
 		slid.step = 1.0
-		slid.value_changed.connect(_on_creation_slider_value_changed.bind(attr))
+		slid.value_changed.connect(_on_creation_slider_changed.bind(slid, attr))
 		var plus_b := Button.new()
 		plus_b.text = "+"
 		plus_b.custom_minimum_size = Vector2(36, 30)
