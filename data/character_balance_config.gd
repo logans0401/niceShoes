@@ -75,7 +75,11 @@ const _Sch := preload("res://scripts/character_schema.gd")
 @export var attribute_spend_growth: float = 1.042
 @export var max_attribute_value: int = 120
 
-@export_group("Combat ratings (skill modifiers add on top)")
+@export_group("Vital XP (bonus max pools — not set at character creation)")
+## Flat bonus to max HP per XP purchase (`vital_xp_purchases.health`).
+@export var vital_bonus_health_per_xp_purchase: float = 12.0
+@export var vital_bonus_stamina_per_xp_purchase: float = 10.0
+@export var vital_bonus_mana_per_xp_purchase: float = 8.0
 @export var attack_skill_scale: float = 1.65
 @export var defense_skill_scale: float = 1.5
 
@@ -146,6 +150,12 @@ func get_unspent_cost_raise_attribute(current_value: int) -> int:
 ## Unspent XP cost to raise a skill from rank -> rank+1 (rank is current rank 0..).
 func get_unspent_cost_raise_skill(skill_rank: int) -> int:
 	return get_skill_xp_to_advance(skill_rank)
+
+
+## Cost for raising an attribute/vital specifically **via unspent XP purchase count** (excluding creation boosts).
+func get_unspent_cost_for_xp_purchase_count(purchases_already: int) -> int:
+	var v_eff: int = clampi(attribute_spend_pivot + maxi(0, purchases_already), 1, 200)
+	return get_unspent_cost_raise_attribute(v_eff)
 
 
 func get_skill_attribute_weights() -> Dictionary:

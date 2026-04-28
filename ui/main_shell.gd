@@ -104,12 +104,14 @@ const _PROGRESSION_ROW_MIN_HEIGHT_PX := 42
 const _PROGRESSION_RAISE_BTN_MIN_HEIGHT_PX := 32
 var _tab_button_group: ButtonGroup = ButtonGroup.new()
 var _tab_index: int = 0
-const _AUTOMATION_PANEL_REVISION: int = 2
+const _AUTOMATION_PANEL_REVISION: int = 3
 var _automation_tab_built_revision: int = 0
 var _opt_follow_target: OptionButton = null
 var _opt_automation_task: OptionButton = null
 var _chk_automation_queue_hold: CheckBox = null
 var _lbl_automation_context: Label = null
+var _automation_follow_block: Control = null
+
 ## Duplicated from the shell theme so OptionButton popups can override internal ScrollContainer without affecting layout height.
 var _option_popup_theme: Theme
 var _quest: QuestSystem
@@ -120,7 +122,7 @@ var _world_actor_by_id: Dictionary = {}
 var _creation_dialog: AcceptDialog = null
 var _creation_name_edit: LineEdit = null
 var _creation_points_label: Label = null
-var _creation_attr_rows: Dictionary = {}
+var _creation_sliders_by_attr: Dictionary = {}
 var _creation_alloc: Dictionary = {}
 var _creation_weapon_select: OptionButton = null
 var _group_signals_connected: bool = false
@@ -800,15 +802,9 @@ func _creation_balance_config() -> CharacterBalanceConfig:
 func _reset_creation_allocation_to_default() -> void:
 	var cfg: CharacterBalanceConfig = _creation_balance_config()
 	var floor_i: int = cfg.creation_attribute_floor
-	var pool_i: int = cfg.creation_attribute_pool
-	var n: int = _Sch.ALL_ATTRIBUTES.size()
-	var base_each: int = pool_i / n
-	var rem: int = pool_i % n
 	_creation_alloc.clear()
-	for i in range(n):
-		var attr: String = _Sch.ALL_ATTRIBUTES[i]
-		var bonus: int = base_each + (1 if i < rem else 0)
-		_creation_alloc[attr] = floor_i + bonus
+	for attr in _Sch.ALL_ATTRIBUTES:
+		_creation_alloc[attr] = floor_i
 
 
 func _creation_points_remaining() -> int:
@@ -819,29 +815,35 @@ func _creation_points_remaining() -> int:
 	return cfg.creation_attribute_pool - spent
 
 
+func _refresh_creation_slider_ranges() -> void:
+	var cfg: CharacterBalanceConfig = _creation_balance_config()
+	var floor_i: int = cfg.creation_attribute_floor
+	var rem: int = _creation_points_remaining()
+	for attr in _Sch.ALL_ATTRIBUTES:
+		var s: Variant = _creation_sliders_by_attr.get(attr, null)
+		if s == null or not (s is Range):
+			continue
+		var r: Range = s as Range
+		var v: int = int(_creation_alloc.get(attr, floor_i))
+		var spent_on: int = v - floor_i
+		var max_v: int = floor_i + mini(cfg.creation_attribute_cap - floor_i, rem + spent_on)
+		r.set_block_signals(true)
+		r.min_value = float(floor_i)
+		r.max_value = float(max_v)
+		r.step = 1.0
+		r.value = float(v)
+		r.set_block_signals(false)
+
+
 func _refresh_creation_alloc_ui() -> void:
 	var cfg: CharacterBalanceConfig = _creation_balance_config()
 	var rem: int = _creation_points_remaining()
 	if _creation_points_label != null:
 		_creation_points_label.text = (
-			"Attribute points remaining: %d  ·  each stat %d–%d  ·  %d points to spend (every character)"
+			"Attribute points remaining: %d  ·  each stat %d–%d  ·  %d points to distribute (spend all to create)"
 			% [rem, cfg.creation_attribute_floor, cfg.creation_attribute_cap, cfg.creation_attribute_pool]
 		)
-	for attr in _Sch.ALL_ATTRIBUTES:
-		var row: Variant = _creation_attr_rows.get(attr, null)
-		if row == null or typeof(row) != TYPE_DICTIONARY:
-			continue
-		var rd: Dictionary = row as Dictionary
-		var vl: Label = rd.get("val", null) as Label
-		if vl != null:
-			vl.text = str(int(_creation_alloc.get(attr, cfg.creation_attribute_floor)))
-		var minus_b: Button = rd.get("minus", null) as Button
-		var plus_b: Button = rd.get("plus", null) as Button
-		var v: int = int(_creation_alloc.get(attr, cfg.creation_attribute_floor))
-		if minus_b != null:
-			minus_b.disabled = v <= cfg.creation_attribute_floor
-		if plus_b != null:
-			plus_b.disabled = v >= cfg.creation_attribute_cap or rem <= 0
+	_refresh_creation_slider_ranges()
 	if _creation_dialog != null:
 		var ok: Button = _creation_dialog.get_ok_button()
 		if ok != null:
@@ -849,16 +851,18 @@ func _refresh_creation_alloc_ui() -> void:
 			ok.disabled = rem != 0 or not name_ok
 
 
-func _on_creation_attr_adjust(attr: String, delta: int) -> void:
+func _on_creation_slider_value_changed(attr: String, value: float) -> void:
 	var cfg: CharacterBalanceConfig = _creation_balance_config()
-	var v: int = int(_creation_alloc.get(attr, cfg.creation_attribute_floor))
-	var next_v: int = v + delta
-	if next_v < cfg.creation_attribute_floor or next_v > cfg.creation_attribute_cap:
+	var floor_i: int = cfg.creation_attribute_floor
+	var new_v: int = clampi(roundi(value), floor_i, cfg.creation_attribute_cap)
+	var old_v: int = int(_creation_alloc.get(attr, floor_i))
+	if new_v == old_v:
 		return
 	var rem: int = _creation_points_remaining()
-	if delta > 0 and rem < delta:
-		return
-	_creation_alloc[attr] = next_v
+	var spent_on: int = old_v - floor_i
+	var max_v: int = floor_i + mini(cfg.creation_attribute_cap - floor_i, rem + spent_on)
+	new_v = clampi(new_v, floor_i, max_v)
+	_creation_alloc[attr] = new_v
 	_refresh_creation_alloc_ui()
 
 
@@ -901,10 +905,10 @@ func _ensure_creation_dialog() -> void:
 	## GDScript supports %d / %f etc.; %g is not valid and breaks the whole %-format (placeholders stay visible).
 	hint.text = (
 		(
-			"Spend %d attribute points (each stat %d–%d). Skills use attributes ÷ %.2f plus XP ranks. "
-			+ "Pools: HP from Heartiness, stamina from Heartiness + Reflexes, mana from Mind + Wisdom."
+			"All stats start at minimum (%d). Drag sliders to spend your %d points (each stat %d–%d). Skills use stretched attributes ÷ %.2f plus XP ranks."
 		)
 		% [
+			c0.creation_attribute_floor,
 			c0.creation_attribute_pool,
 			c0.creation_attribute_floor,
 			c0.creation_attribute_cap,
@@ -920,32 +924,25 @@ func _ensure_creation_dialog() -> void:
 	var attrs_box := VBoxContainer.new()
 	attrs_box.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	attrs_box.add_theme_constant_override("separation", 4)
+	_creation_sliders_by_attr.clear()
 	for attr in _Sch.ALL_ATTRIBUTES:
 		var row := HBoxContainer.new()
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-		row.add_theme_constant_override("separation", 6)
+		row.add_theme_constant_override("separation", 8)
 		var cap := Label.new()
 		cap.text = attr.capitalize()
-		cap.custom_minimum_size = Vector2(100, 0)
-		var minus_b := Button.new()
-		minus_b.text = "−"
-		minus_b.custom_minimum_size = Vector2(36, 28)
-		minus_b.focus_mode = Control.FOCUS_NONE
-		minus_b.pressed.connect(_on_creation_attr_adjust.bind(attr, -1))
-		var val := Label.new()
-		val.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		val.custom_minimum_size = Vector2(36, 0)
-		var plus_b := Button.new()
-		plus_b.text = "+"
-		plus_b.custom_minimum_size = Vector2(36, 28)
-		plus_b.focus_mode = Control.FOCUS_NONE
-		plus_b.pressed.connect(_on_creation_attr_adjust.bind(attr, 1))
+		cap.custom_minimum_size = Vector2(104, 0)
+		cap.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		var slid := HSlider.new()
+		slid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		slid.custom_minimum_size = Vector2(120, 0)
+		slid.step = 1.0
+		slid.value_changed.connect(_on_creation_slider_value_changed.bind(attr))
 		row.add_child(cap)
-		row.add_child(minus_b)
-		row.add_child(val)
-		row.add_child(plus_b)
+		row.add_child(slid)
 		attrs_box.add_child(row)
-		_creation_attr_rows[attr] = {"minus": minus_b, "plus": plus_b, "val": val}
+		_creation_sliders_by_attr[attr] = slid
 	vb.add_child(attrs_box)
 	var weapon_lbl := Label.new()
 	weapon_lbl.text = "Starter weapon (optional)"
@@ -2428,6 +2425,47 @@ func _apply_follow_movement(_delta: float) -> void:
 			node.set_automation_velocity(Vector2.ZERO)
 
 
+
+func _sync_follow_dropdown_selection_from_panel_b() -> void:
+	if _opt_follow_target == null:
+		return
+	var n_items: int = _opt_follow_target.item_count
+	if n_items <= 0:
+		return
+	var want: StringName = &""
+	var self_cid: StringName = _drafting_automation_character_id()
+	if self_cid == &"":
+		self_cid = _focus_character_id
+	if _selection_portrait_source == "world" and _selection_world_kind == "actor" and _selection_world_id != &"":
+		var cand: StringName = _selection_world_id
+		if cand != self_cid and _follow_roster_contains(cand):
+			want = cand
+	var pick: int = -1
+	if want != &"":
+		for i in range(n_items):
+			var meta: Variant = _opt_follow_target.get_item_metadata(i)
+			if meta == null:
+				continue
+			if StringName(str(meta)) == want:
+				pick = i
+				break
+	_opt_follow_target.set_block_signals(true)
+	if pick >= 0:
+		_opt_follow_target.select(pick)
+	elif n_items > 0:
+		_opt_follow_target.select(0)
+	_opt_follow_target.set_block_signals(false)
+
+
+func _follow_roster_contains(cid: StringName) -> bool:
+	if _group_system == null or not _group_system.has_method("get_roster"):
+		return false
+	for r in _group_system.get_roster():
+		if r == cid:
+			return true
+	return false
+
+
 func _refresh_follow_target_options() -> void:
 	if _opt_follow_target == null:
 		return
@@ -2448,9 +2486,7 @@ func _refresh_follow_target_options() -> void:
 			added += 1
 	if added == 0:
 		_opt_follow_target.add_item("(no other party members)")
-	if _opt_follow_target.item_count > 0:
-		_opt_follow_target.select(0)
-	_opt_follow_target.set_block_signals(false)
+	_sync_follow_dropdown_selection_from_panel_b()
 
 
 func _rebuild_progression_panels() -> void:
@@ -2487,14 +2523,23 @@ func _rebuild_attributes_panel() -> void:
 		int(data.total_experience),
 	]
 	v.add_child(hdr)
+	var st_eff: Dictionary = {}
+	if _stats != null and _equipment != null:
+		st_eff = _stats.get_effective_stats(_focus_character_id, data, _equipment)
+	var bal_cfg: CharacterBalanceConfig = _balance as CharacterBalanceConfig
 	for attr in _Sch.ALL_ATTRIBUTES:
 		var row := HBoxContainer.new()
 		row.custom_minimum_size = Vector2(0, float(_PROGRESSION_ROW_MIN_HEIGHT_PX))
 		row.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.alignment = BoxContainer.ALIGNMENT_CENTER
-		var cap := int(data.attributes.get(attr, 10))
+		var cap: int = int(data.attributes.get(attr, 10))
 		var eff: int = int(data.get_effective_attribute(StringName(attr)))
-		var cost: int = _balance.get_unspent_cost_raise_attribute(cap)
+		var purchases: int = int(data.attribute_xp_purchases.get(attr, 0))
+		var cost: int = 0
+		if bal_cfg != null:
+			cost = bal_cfg.get_unspent_cost_for_xp_purchase_count(purchases)
+		else:
+			cost = _balance.get_unspent_cost_raise_attribute(cap)
 		var lbl := Label.new()
 		var bonus: int = eff - cap
 		if bonus != 0:
@@ -2513,6 +2558,51 @@ func _rebuild_attributes_panel() -> void:
 		row.add_child(lbl)
 		row.add_child(btn)
 		v.add_child(row)
+	if bal_cfg != null:
+		var vital_defs: Array = [
+			{
+				"id": &"health",
+				"title": "Max Health",
+				"cur": data.current_health,
+				"max_k": "max_health",
+			},
+			{
+				"id": &"stamina",
+				"title": "Max Stamina",
+				"cur": data.current_stamina,
+				"max_k": "max_stamina",
+			},
+			{
+				"id": &"mana",
+				"title": "Max Mana",
+				"cur": data.current_mana,
+				"max_k": "max_mana",
+			},
+		]
+		for vd in vital_defs:
+			var vid: StringName = vd["id"] as StringName
+			var vk: String = String(vid)
+			var rowv := HBoxContainer.new()
+			rowv.custom_minimum_size = Vector2(0, float(_PROGRESSION_ROW_MIN_HEIGHT_PX))
+			rowv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			rowv.alignment = BoxContainer.ALIGNMENT_CENTER
+			var mx: float = float(st_eff.get(vd["max_k"], 0.0))
+			var vpurch: int = int(data.vital_xp_purchases.get(vk, 0))
+			var vcost: int = bal_cfg.get_unspent_cost_for_xp_purchase_count(vpurch)
+			var lblv := Label.new()
+			lblv.text = "%s   %.0f / %.0f" % [vd["title"], float(vd["cur"]), mx]
+			lblv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			lblv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			lblv.clip_text = true
+			var btnv := Button.new()
+			btnv.text = "Raise max · %d XP" % vcost
+			btnv.custom_minimum_size = Vector2(0, float(_PROGRESSION_RAISE_BTN_MIN_HEIGHT_PX))
+			btnv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			btnv.disabled = int(data.unspent_experience) < vcost
+			btnv.pressed.connect(_on_buy_vital_pressed.bind(vid))
+			rowv.add_child(lblv)
+			rowv.add_child(btnv)
+			v.add_child(rowv)
 	margin.add_child(v)
 	sc.add_child(margin)
 	_d_attributes_host.add_child(sc)
@@ -2522,6 +2612,17 @@ func _on_buy_attribute_pressed(attr_id: StringName) -> void:
 	if _progression == null:
 		return
 	_progression.try_raise_attribute(_focus_character_id, attr_id)
+	if _stats != null:
+		_stats.invalidate(_focus_character_id)
+	_rebuild_progression_panels()
+	_refresh_party_cards()
+	_refresh_hud_vitals()
+
+
+func _on_buy_vital_pressed(vital_id: StringName) -> void:
+	if _progression == null:
+		return
+	_progression.try_raise_vital_pool(_focus_character_id, vital_id)
 	if _stats != null:
 		_stats.invalidate(_focus_character_id)
 	_rebuild_progression_panels()
@@ -2586,9 +2687,9 @@ func _rebuild_skills_panel() -> void:
 		row.alignment = BoxContainer.ALIGNMENT_CENTER
 		var bought_rank: int = int(data.skill_levels.get(sk, 0))
 		var buff_rank: int = int(data.transient_skill_bonus.get(sk, 0))
-		var merged_rank: int = bought_rank + buff_rank
 		var mod_total: float = float(skill_mods.get(sk, 0.0))
-		var cost: int = _balance.get_unspent_cost_raise_skill(bought_rank)
+		var sk_purchases: int = int(data.skill_xp_purchases.get(sk, 0))
+		var cost: int = _balance.get_unspent_cost_raise_skill(sk_purchases)
 		var lbl := Label.new()
 		var line: String = "%s   %.2f   (ranks %d" % [_pretty_skill_label(sk), mod_total, bought_rank]
 		if buff_rank != 0:
@@ -2634,6 +2735,7 @@ func _ensure_automation_tab_controls() -> void:
 	_opt_automation_task = null
 	_chk_automation_queue_hold = null
 	_lbl_automation_context = null
+	_automation_follow_block = null
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 	margin.add_theme_constant_override("margin_left", 4)
@@ -2643,7 +2745,7 @@ func _ensure_automation_tab_controls() -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	var hint := Label.new()
-	hint.text = "Pick a task, Add to queue, then Begin. Panel E sets the runner queue. For Follow and Assist combat, select another party character in the world (Panel B.b); Follow can also use the party dropdown below."
+	hint.text = "Pick a task, Add to queue, then Begin. When Follow is selected, choose a party follow target below; if B.b has a followable ally, that entry is selected by default."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(hint)
 	_lbl_automation_context = Label.new()
@@ -2695,9 +2797,13 @@ func _ensure_automation_tab_controls() -> void:
 	row_actions.add_child(btn_begin)
 	row_actions.add_child(btn_clear)
 	v.add_child(row_actions)
+	_automation_follow_block = VBoxContainer.new()
+	_automation_follow_block.visible = false
+	_automation_follow_block.add_theme_constant_override("separation", 6)
 	var lbl_follow := Label.new()
-	lbl_follow.text = "Follow target fallback (party dropdown):"
-	v.add_child(lbl_follow)
+	lbl_follow.text = "Follow target (party):"
+	lbl_follow.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_automation_follow_block.add_child(lbl_follow)
 	var opt_follow := OptionButton.new()
 	opt_follow.custom_minimum_size = Vector2(200, 0)
 	opt_follow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -2707,10 +2813,14 @@ func _ensure_automation_tab_controls() -> void:
 		opt_follow.get_popup().theme = _build_option_popup_theme(theme as Theme)
 	_wire_option_button_popup(opt_follow)
 	_opt_follow_target = opt_follow
-	v.add_child(opt_follow)
+	_automation_follow_block.add_child(opt_follow)
+	v.add_child(_automation_follow_block)
 	margin.add_child(v)
 	_d_automation_host.add_child(margin)
+	if _opt_automation_task != null:
+		_opt_automation_task.item_selected.connect(_on_automation_task_selected)
 	_refresh_follow_target_options()
+	_refresh_automation_follow_visibility()
 	_refresh_automation_context_label()
 	if _automation != null:
 		_automation.set_dispatch_held(_current_runner_id, _chk_automation_queue_hold.button_pressed)
@@ -2737,21 +2847,30 @@ func _get_automation_task_type_from_ui() -> int:
 	return int(m) if m != null else AutomationSystem.TaskType.IDLE
 
 
+func _refresh_automation_follow_visibility() -> void:
+	if _automation_follow_block == null or _opt_automation_task == null:
+		return
+	var tt: int = _get_automation_task_type_from_ui()
+	_automation_follow_block.visible = tt == AutomationSystem.TaskType.FOLLOW_CHARACTER
+
+
+func _on_automation_task_selected(_idx: int) -> void:
+	_refresh_automation_follow_visibility()
+
+
 func _resolve_follow_target_for_task() -> StringName:
 	var self_cid: StringName = _drafting_automation_character_id()
-	if _selection_portrait_source == "world" and _selection_world_kind == "actor":
-		var tid: StringName = _selection_world_id
-		if tid != &"" and tid != self_cid:
-			return tid
 	if _opt_follow_target != null and _opt_follow_target.item_count > 0:
-		var sel_idx: int = _opt_follow_target.selected
-		if sel_idx < 0:
-			sel_idx = 0
+		var sel_idx: int = clampi(_opt_follow_target.selected, 0, _opt_follow_target.item_count - 1)
 		var meta: Variant = _opt_follow_target.get_item_metadata(sel_idx)
 		if meta != null:
 			var oid: StringName = StringName(str(meta))
 			if oid != &"" and oid != self_cid:
 				return oid
+	if _selection_portrait_source == "world" and _selection_world_kind == "actor":
+		var tid: StringName = _selection_world_id
+		if tid != &"" and tid != self_cid:
+			return tid
 	return &""
 
 
@@ -2900,6 +3019,8 @@ func _sync_runner_dropdown_to_id(cid: StringName) -> void:
 		_automation_runner_select.select(maxi(0, _automation_runner_select.item_count - 1))
 	_automation_runner_select.set_block_signals(false)
 	_refresh_automation_panel()
+	_refresh_follow_target_options()
+	_refresh_automation_follow_visibility()
 
 
 func _on_party_add_pressed(slot_index: int) -> void:
@@ -3198,6 +3319,8 @@ func _on_automation_runner_selected(index: int) -> void:
 	if _automation != null:
 		_automation.ensure_runner(_current_runner_id)
 	_refresh_automation_panel()
+	_refresh_follow_target_options()
+	_refresh_automation_follow_visibility()
 
 
 func _on_automation_runner_queue_changed(runner_id: StringName) -> void:
@@ -3490,9 +3613,14 @@ func _on_inventory_slot_selection_changed(selection: Dictionary) -> void:
 	_refresh_selection_portrait()
 
 
+func _deferred_sync_follow_dropdown_from_portrait() -> void:
+	_sync_follow_dropdown_selection_from_panel_b()
+
+
 func _refresh_selection_portrait() -> void:
 	if _bb_title == null or _bb_subtitle == null or _bb_portrait == null or _bb_fallback == null:
 		return
+	call_deferred(&"_deferred_sync_follow_dropdown_from_portrait")
 	call_deferred(&"_refresh_automation_context_label")
 	if _selection_portrait_source == "inventory" and not _selection_inventory_snapshot.is_empty():
 		var src: String = String(_selection_inventory_snapshot.get("source", ""))

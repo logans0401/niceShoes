@@ -17,9 +17,15 @@ const _Schema := preload("res://scripts/character_schema.gd")
 
 @export var attributes: Dictionary = {}
 @export var attribute_xp: Dictionary = {}
+## Times each attribute was raised by spending unspent XP (not creation points).
+@export var attribute_xp_purchases: Dictionary = {}
+## Times each vital pool was raised by spending unspent XP (keys: health, stamina, mana).
+@export var vital_xp_purchases: Dictionary = {}
 
 @export var skill_levels: Dictionary = {}
 @export var skill_xp: Dictionary = {}
+## Times each skill rank was bought with unspent XP (cost tier); not buffs or other sources.
+@export var skill_xp_purchases: Dictionary = {}
 ## Temporary bonuses (buffs). Added to base attribute/skill for display and checks; tune serialization via `version`.
 @export var transient_attribute_bonus: Dictionary = {}
 @export var transient_skill_bonus: Dictionary = {}
@@ -48,11 +54,18 @@ func ensure_defaults() -> void:
 			attributes[attr] = 10
 		if not attribute_xp.has(attr):
 			attribute_xp[attr] = 0
+		if not attribute_xp_purchases.has(attr):
+			attribute_xp_purchases[attr] = 0
+	for vk in ["health", "stamina", "mana"]:
+		if not vital_xp_purchases.has(vk):
+			vital_xp_purchases[vk] = 0
 	for skill in _Schema.ALL_SKILLS:
 		if not skill_levels.has(skill):
 			skill_levels[skill] = 0
 		if not skill_xp.has(skill):
 			skill_xp[skill] = 0
+		if not skill_xp_purchases.has(skill):
+			skill_xp_purchases[skill] = 0
 	if current_health <= 0.0:
 		current_health = 1.0
 	if current_stamina <= 0.0:
@@ -90,7 +103,7 @@ func duplicate_data() -> Resource:
 
 func to_dictionary() -> Dictionary:
 	return {
-		"version": 5,
+		"version": 7,
 		"character_id": character_id,
 		"user_name": user_name,
 		"is_logged_in": is_logged_in,
@@ -99,8 +112,11 @@ func to_dictionary() -> Dictionary:
 		"unspent_experience": unspent_experience,
 		"attributes": attributes.duplicate(true),
 		"attribute_xp": attribute_xp.duplicate(true),
+		"attribute_xp_purchases": attribute_xp_purchases.duplicate(true),
+		"vital_xp_purchases": vital_xp_purchases.duplicate(true),
 		"skill_levels": skill_levels.duplicate(true),
 		"skill_xp": skill_xp.duplicate(true),
+		"skill_xp_purchases": skill_xp_purchases.duplicate(true),
 		"transient_attribute_bonus": transient_attribute_bonus.duplicate(true),
 		"transient_skill_bonus": transient_skill_bonus.duplicate(true),
 		"known_spells": Array(known_spells),
@@ -131,8 +147,23 @@ static func from_dictionary(data: Dictionary) -> Resource:
 		cd.unspent_experience = 0
 	cd.attributes = (data.get("attributes", {}) as Dictionary).duplicate(true)
 	cd.attribute_xp = (data.get("attribute_xp", {}) as Dictionary).duplicate(true)
+	if ver >= 6:
+		cd.attribute_xp_purchases = (data.get("attribute_xp_purchases", {}) as Dictionary).duplicate(true)
+		cd.vital_xp_purchases = (data.get("vital_xp_purchases", {}) as Dictionary).duplicate(true)
+	else:
+		cd.attribute_xp_purchases = {}
+		cd.vital_xp_purchases = {}
 	cd.skill_levels = (data.get("skill_levels", {}) as Dictionary).duplicate(true)
 	cd.skill_xp = (data.get("skill_xp", {}) as Dictionary).duplicate(true)
+	if ver >= 7:
+		cd.skill_xp_purchases = (data.get("skill_xp_purchases", {}) as Dictionary).duplicate(true)
+	elif ver >= 6:
+		## Skills had no separate purchase counter; assume each rank was bought with XP.
+		cd.skill_xp_purchases = {}
+		for sk in _Schema.ALL_SKILLS:
+			cd.skill_xp_purchases[sk] = int(cd.skill_levels.get(sk, 0))
+	else:
+		cd.skill_xp_purchases = {}
 	if ver >= 4:
 		cd.transient_attribute_bonus = (data.get("transient_attribute_bonus", {}) as Dictionary).duplicate(true)
 		cd.transient_skill_bonus = (data.get("transient_skill_bonus", {}) as Dictionary).duplicate(true)

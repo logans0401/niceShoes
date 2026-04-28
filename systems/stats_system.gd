@@ -121,6 +121,15 @@ func _compute(data: Resource, _loadout: Dictionary) -> Dictionary:
 		+ float(lvl) * cfg.mana_per_level
 	)
 
+	if cfg is CharacterBalanceConfig:
+		var ccfg: CharacterBalanceConfig = cfg as CharacterBalanceConfig
+		var vhp: int = int(data.vital_xp_purchases.get("health", 0))
+		var vsp: int = int(data.vital_xp_purchases.get("stamina", 0))
+		var vma: int = int(data.vital_xp_purchases.get("mana", 0))
+		max_health += float(vhp) * ccfg.vital_bonus_health_per_xp_purchase
+		max_stamina += float(vsp) * ccfg.vital_bonus_stamina_per_xp_purchase
+		max_mana += float(vma) * ccfg.vital_bonus_mana_per_xp_purchase
+
 	var attack_rating: float = (
 		cfg.attack_skill_scale * (melee_mod + 0.35 * missile_mod + 0.25 * magic_mod)
 		+ strn_e * 0.35

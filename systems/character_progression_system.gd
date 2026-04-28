@@ -2,6 +2,7 @@ class_name CharacterProgressionSystem
 extends Node
 
 const _Schema := preload("res://scripts/character_schema.gd")
+const CharacterBalanceConfig := preload("res://data/character_balance_config.gd")
 
 signal level_changed(character_id: StringName, new_level: int)
 signal skill_rank_changed(character_id: StringName, skill_id: StringName, new_rank: int)
@@ -63,12 +64,14 @@ func try_raise_attribute(character_id: StringName, attribute_id: StringName) -> 
 	var value: int = int(data.attributes.get(attribute_id, 10))
 	if value >= cap:
 		return ERR_OUT_OF_MEMORY
-	var cost: int = _balance.get_unspent_cost_raise_attribute(value)
+	var purchases: int = int(data.attribute_xp_purchases.get(String(attribute_id), 0))
+	var cost: int = _balance.get_unspent_cost_for_xp_purchase_count(purchases)
 	if data.unspent_experience < cost:
 		return FAILED
 	data.unspent_experience -= cost
 	value += 1
 	data.attributes[attribute_id] = value
+	data.attribute_xp_purchases[String(attribute_id)] = purchases + 1
 	unspent_changed.emit(character_id, data.unspent_experience)
 	attribute_changed.emit(character_id, attribute_id, value)
 	return OK
@@ -81,14 +84,44 @@ func try_raise_skill(character_id: StringName, skill_id: StringName) -> Error:
 	if not String(skill_id) in _Schema.ALL_SKILLS:
 		return ERR_INVALID_PARAMETER
 	var rank: int = int(data.skill_levels.get(skill_id, 0))
-	var cost: int = _balance.get_unspent_cost_raise_skill(rank)
+	var purchases: int = int(data.skill_xp_purchases.get(String(skill_id), 0))
+	var cost: int = _balance.get_unspent_cost_raise_skill(purchases)
 	if data.unspent_experience < cost:
 		return FAILED
 	data.unspent_experience -= cost
 	rank += 1
 	data.skill_levels[skill_id] = rank
+	data.skill_xp_purchases[String(skill_id)] = purchases + 1
 	unspent_changed.emit(character_id, data.unspent_experience)
 	skill_rank_changed.emit(character_id, skill_id, rank)
+	return OK
+
+
+## Raise max Health, Stamina, or Mana via XP (keys: "health", "stamina", "mana").
+func try_raise_vital_pool(character_id: StringName, vital_key: StringName) -> Error:
+	var data: Resource = _registry.get_character(character_id)
+	if data == null or _balance == null:
+		return ERR_DOES_NOT_EXIST
+	var k: String = String(vital_key)
+	if k != "health" and k != "stamina" and k != "mana":
+		return ERR_INVALID_PARAMETER
+	if not (_balance is CharacterBalanceConfig):
+		return FAILED
+	var cfg: CharacterBalanceConfig = _balance as CharacterBalanceConfig
+	var purchases: int = int(data.vital_xp_purchases.get(k, 0))
+	var cost: int = cfg.get_unspent_cost_for_xp_purchase_count(purchases)
+	if data.unspent_experience < cost:
+		return FAILED
+	data.unspent_experience -= cost
+	data.vital_xp_purchases[k] = purchases + 1
+	match k:
+		"health":
+			data.current_health += cfg.vital_bonus_health_per_xp_purchase
+		"stamina":
+			data.current_stamina += cfg.vital_bonus_stamina_per_xp_purchase
+		"mana":
+			data.current_mana += cfg.vital_bonus_mana_per_xp_purchase
+	unspent_changed.emit(character_id, data.unspent_experience)
 	return OK
 
 
