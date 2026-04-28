@@ -123,6 +123,9 @@ var _creation_dialog: AcceptDialog = null
 var _creation_name_edit: LineEdit = null
 var _creation_points_label: Label = null
 var _creation_sliders_by_attr: Dictionary = {}
+var _creation_value_labels_by_attr: Dictionary = {}
+var _creation_minus_buttons_by_attr: Dictionary = {}
+var _creation_plus_buttons_by_attr: Dictionary = {}
 var _creation_alloc: Dictionary = {}
 var _creation_weapon_select: OptionButton = null
 var _group_signals_connected: bool = false
@@ -815,18 +818,27 @@ func _creation_points_remaining() -> int:
 	return cfg.creation_attribute_pool - spent
 
 
+## Max value this stat may take given current allocations (pool + reclaimed points on this stat).
+func _creation_max_allow_for_attribute(attr: String) -> int:
+	var cfg: CharacterBalanceConfig = _creation_balance_config()
+	var floor_i: int = cfg.creation_attribute_floor
+	var cap_i: int = cfg.creation_attribute_cap
+	var rem: int = _creation_points_remaining()
+	var v: int = int(_creation_alloc.get(attr, floor_i))
+	var spent_on: int = v - floor_i
+	return floor_i + mini(cap_i - floor_i, rem + spent_on)
+
+
 func _refresh_creation_slider_ranges() -> void:
 	var cfg: CharacterBalanceConfig = _creation_balance_config()
 	var floor_i: int = cfg.creation_attribute_floor
-	var rem: int = _creation_points_remaining()
 	for attr in _Sch.ALL_ATTRIBUTES:
 		var s: Variant = _creation_sliders_by_attr.get(attr, null)
 		if s == null or not (s is Range):
 			continue
 		var r: Range = s as Range
 		var v: int = int(_creation_alloc.get(attr, floor_i))
-		var spent_on: int = v - floor_i
-		var max_v: int = floor_i + mini(cfg.creation_attribute_cap - floor_i, rem + spent_on)
+		var max_v: int = _creation_max_allow_for_attribute(attr)
 		r.set_block_signals(true)
 		r.min_value = float(floor_i)
 		r.max_value = float(max_v)
@@ -835,15 +847,35 @@ func _refresh_creation_slider_ranges() -> void:
 		r.set_block_signals(false)
 
 
+func _refresh_creation_increment_buttons() -> void:
+	var cfg: CharacterBalanceConfig = _creation_balance_config()
+	var floor_i: int = cfg.creation_attribute_floor
+	for attr in _Sch.ALL_ATTRIBUTES:
+		var v: int = int(_creation_alloc.get(attr, floor_i))
+		var max_v: int = _creation_max_allow_for_attribute(attr)
+		var mb: Variant = _creation_minus_buttons_by_attr.get(attr, null)
+		if mb is BaseButton:
+			(mb as BaseButton).disabled = v <= floor_i
+		var pb: Variant = _creation_plus_buttons_by_attr.get(attr, null)
+		if pb is BaseButton:
+			(pb as BaseButton).disabled = v >= max_v
+
+
 func _refresh_creation_alloc_ui() -> void:
 	var cfg: CharacterBalanceConfig = _creation_balance_config()
+	var floor_i: int = cfg.creation_attribute_floor
 	var rem: int = _creation_points_remaining()
 	if _creation_points_label != null:
 		_creation_points_label.text = (
 			"Attribute points remaining: %d  ·  each stat %d–%d  ·  %d points to distribute (spend all to create)"
-			% [rem, cfg.creation_attribute_floor, cfg.creation_attribute_cap, cfg.creation_attribute_pool]
+			% [rem, floor_i, cfg.creation_attribute_cap, cfg.creation_attribute_pool]
 		)
+	for attr in _Sch.ALL_ATTRIBUTES:
+		var vl: Variant = _creation_value_labels_by_attr.get(attr, null)
+		if vl is Label:
+			(vl as Label).text = str(int(_creation_alloc.get(attr, floor_i)))
 	_refresh_creation_slider_ranges()
+	_refresh_creation_increment_buttons()
 	if _creation_dialog != null:
 		var ok: Button = _creation_dialog.get_ok_button()
 		if ok != null:
@@ -852,17 +884,28 @@ func _refresh_creation_alloc_ui() -> void:
 
 
 func _on_creation_slider_value_changed(attr: String, value: float) -> void:
+	var floor_i: int = _creation_balance_config().creation_attribute_floor
+	var old_v: int = int(_creation_alloc.get(attr, floor_i))
+	var max_v: int = _creation_max_allow_for_attribute(attr)
+	var new_v: int = clampi(int(round(value)), floor_i, max_v)
+	if new_v != old_v:
+		_creation_alloc[attr] = new_v
+	_refresh_creation_alloc_ui()
+
+
+func _on_creation_attr_adjust(attr: String, delta: int) -> void:
 	var cfg: CharacterBalanceConfig = _creation_balance_config()
 	var floor_i: int = cfg.creation_attribute_floor
-	var new_v: int = clampi(roundi(value), floor_i, cfg.creation_attribute_cap)
-	var old_v: int = int(_creation_alloc.get(attr, floor_i))
-	if new_v == old_v:
+	var v: int = int(_creation_alloc.get(attr, floor_i))
+	var next_v: int = v + delta
+	var max_v: int = _creation_max_allow_for_attribute(attr)
+	if delta < 0:
+		next_v = maxi(next_v, floor_i)
+	elif delta > 0:
+		next_v = mini(next_v, max_v)
+	if next_v == v:
 		return
-	var rem: int = _creation_points_remaining()
-	var spent_on: int = old_v - floor_i
-	var max_v: int = floor_i + mini(cfg.creation_attribute_cap - floor_i, rem + spent_on)
-	new_v = clampi(new_v, floor_i, max_v)
-	_creation_alloc[attr] = new_v
+	_creation_alloc[attr] = next_v
 	_refresh_creation_alloc_ui()
 
 
@@ -925,24 +968,47 @@ func _ensure_creation_dialog() -> void:
 	attrs_box.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	attrs_box.add_theme_constant_override("separation", 4)
 	_creation_sliders_by_attr.clear()
+	_creation_value_labels_by_attr.clear()
+	_creation_minus_buttons_by_attr.clear()
+	_creation_plus_buttons_by_attr.clear()
 	for attr in _Sch.ALL_ATTRIBUTES:
 		var row := HBoxContainer.new()
 		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-		row.add_theme_constant_override("separation", 8)
+		row.add_theme_constant_override("separation", 6)
 		var cap := Label.new()
 		cap.text = attr.capitalize()
-		cap.custom_minimum_size = Vector2(104, 0)
+		cap.custom_minimum_size = Vector2(96, 0)
 		cap.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		var minus_b := Button.new()
+		minus_b.text = "−"
+		minus_b.custom_minimum_size = Vector2(36, 30)
+		minus_b.focus_mode = Control.FOCUS_NONE
+		minus_b.pressed.connect(_on_creation_attr_adjust.bind(attr, -1))
 		var slid := HSlider.new()
 		slid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		slid.custom_minimum_size = Vector2(120, 0)
+		slid.custom_minimum_size = Vector2(80, 0)
 		slid.step = 1.0
 		slid.value_changed.connect(_on_creation_slider_value_changed.bind(attr))
+		var plus_b := Button.new()
+		plus_b.text = "+"
+		plus_b.custom_minimum_size = Vector2(36, 30)
+		plus_b.focus_mode = Control.FOCUS_NONE
+		plus_b.pressed.connect(_on_creation_attr_adjust.bind(attr, 1))
+		var val_lbl := Label.new()
+		val_lbl.custom_minimum_size = Vector2(44, 0)
+		val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		val_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(cap)
+		row.add_child(minus_b)
 		row.add_child(slid)
+		row.add_child(plus_b)
+		row.add_child(val_lbl)
 		attrs_box.add_child(row)
 		_creation_sliders_by_attr[attr] = slid
+		_creation_value_labels_by_attr[attr] = val_lbl
+		_creation_minus_buttons_by_attr[attr] = minus_b
+		_creation_plus_buttons_by_attr[attr] = plus_b
 	vb.add_child(attrs_box)
 	var weapon_lbl := Label.new()
 	weapon_lbl.text = "Starter weapon (optional)"
