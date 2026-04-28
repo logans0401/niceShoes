@@ -818,32 +818,42 @@ func _creation_points_remaining() -> int:
 	return cfg.creation_attribute_pool - spent
 
 
-## Max value this stat may take given current allocations (pool + reclaimed points on this stat).
-func _creation_max_allow_for_attribute(attr: String) -> int:
+## Max points above creation floor assignable on this attribute (respects cap span + pool reclaim).
+func _creation_max_slice_for_attribute(attr: String) -> int:
 	var cfg: CharacterBalanceConfig = _creation_balance_config()
 	var floor_i: int = cfg.creation_attribute_floor
-	var cap_i: int = cfg.creation_attribute_cap
+	var cap_span: int = cfg.creation_attribute_cap - floor_i
 	var rem: int = _creation_points_remaining()
 	var v: int = int(_creation_alloc.get(attr, floor_i))
-	var spent_on: int = v - floor_i
-	return floor_i + mini(cap_i - floor_i, rem + spent_on)
+	var spent_above: int = v - floor_i
+	return mini(cap_span, rem + spent_above)
+
+
+## Max rolled stat total (floor + slice cap).
+func _creation_max_allow_for_attribute(attr: String) -> int:
+	return _creation_balance_config().creation_attribute_floor + _creation_max_slice_for_attribute(attr)
 
 
 func _refresh_creation_slider_ranges() -> void:
 	var cfg: CharacterBalanceConfig = _creation_balance_config()
 	var floor_i: int = cfg.creation_attribute_floor
-	for attr in _Sch.ALL_ATTRIBUTES:
+	for attr_iter in _Sch.ALL_ATTRIBUTES:
+		var attr: String = attr_iter
 		var s: Variant = _creation_sliders_by_attr.get(attr, null)
-		if s == null or not (s is Range):
+		if not (s is Range):
 			continue
 		var r: Range = s as Range
-		var v: int = int(_creation_alloc.get(attr, floor_i))
-		var max_v: int = _creation_max_allow_for_attribute(attr)
-		r.min_value = float(floor_i)
-		r.max_value = float(max_v)
+		var raw: int = int(_creation_alloc.get(attr, floor_i))
+		var spent: int = raw - floor_i
+		var mx_slice: int = _creation_max_slice_for_attribute(attr)
+		if spent > mx_slice:
+			spent = mx_slice
+			_creation_alloc[attr] = floor_i + spent
+		r.min_value = 0.0
+		r.max_value = float(mx_slice)
 		r.step = 1.0
-		## Avoid re-entrant value_changed loops when syncing UI from allocations.
-		r.set_value_no_signal(float(v))
+		r.rounded = true
+		r.set_value_no_signal(float(spent))
 
 
 func _refresh_creation_increment_buttons() -> void:
@@ -882,14 +892,18 @@ func _refresh_creation_alloc_ui() -> void:
 			ok.disabled = rem != 0 or not name_ok
 
 
-func _on_creation_slider_changed(slider: Range, attr: String, _unused_signal_arg: float) -> void:
-	## Read slider.value — Callable.bind attr + emitted float can confuse argument order at runtime.
+func _creation_slider_value_changed(signal_attr: String, _sig_value_unused: float) -> void:
+	## Single-bound Callable: appended arg is emitted float — take slider instance from lookup.
+	var slid: Variant = _creation_sliders_by_attr.get(signal_attr, null)
+	if slid is Range:
+		_creation_apply_slider_slice_from_range(signal_attr, slid as Range)
+
+
+func _creation_apply_slider_slice_from_range(attr: String, slider: Range) -> void:
 	var floor_i: int = _creation_balance_config().creation_attribute_floor
-	var old_v: int = int(_creation_alloc.get(attr, floor_i))
-	var max_v: int = _creation_max_allow_for_attribute(attr)
-	var new_v: int = clampi(int(round(slider.value)), floor_i, max_v)
-	if new_v != old_v:
-		_creation_alloc[attr] = new_v
+	var mx: int = _creation_max_slice_for_attribute(attr)
+	var slices: int = clampi(int(round(slider.value)), 0, mx)
+	_creation_alloc[attr] = floor_i + slices
 	_refresh_creation_alloc_ui()
 
 
@@ -948,13 +962,13 @@ func _ensure_creation_dialog() -> void:
 	## GDScript supports %d / %f etc.; %g is not valid and breaks the whole %-format (placeholders stay visible).
 	hint.text = (
 		(
-			"All stats start at minimum (%d). Drag sliders to spend your %d points (each stat %d–%d). Skills use stretched attributes ÷ %.2f plus XP ranks."
+			"Each slider is bonus points above the %d floor (%d ticks up to %d). Spend all %d creation points (bar or − / +). Skills: stretched attributes ÷ %.2f plus XP ranks."
 		)
 		% [
 			c0.creation_attribute_floor,
-			c0.creation_attribute_pool,
-			c0.creation_attribute_floor,
+			c0.creation_attribute_cap - c0.creation_attribute_floor,
 			c0.creation_attribute_cap,
+			c0.creation_attribute_pool,
 			c0.skill_base_divisor,
 		]
 	)
@@ -987,9 +1001,11 @@ func _ensure_creation_dialog() -> void:
 		minus_b.pressed.connect(_on_creation_attr_adjust.bind(attr, -1))
 		var slid := HSlider.new()
 		slid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		slid.custom_minimum_size = Vector2(80, 0)
+		slid.custom_minimum_size = Vector2(80, 28)
 		slid.step = 1.0
-		slid.value_changed.connect(_on_creation_slider_changed.bind(slid, attr))
+		slid.rounded = true
+		slid.focus_mode = Control.FOCUS_CLICK
+		slid.value_changed.connect(_creation_slider_value_changed.bind(attr))
 		var plus_b := Button.new()
 		plus_b.text = "+"
 		plus_b.custom_minimum_size = Vector2(36, 30)
