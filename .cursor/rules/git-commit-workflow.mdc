@@ -1,0 +1,32 @@
+---
+description: Manage Git in this repo after code changes; commit with professional habits.
+alwaysApply: true
+---
+
+# Git (niceShoes)
+
+Assume the user does not run Git commands. You manage version control for `D:\Projects\Cursor\niceShoes`.
+
+## When to commit
+
+After you **finish** substantive code or asset changes from the user’s prompt (unless they explicitly say not to commit):
+
+1. Run `git status` in the project root.
+2. `git add` only files that belong to the work just completed.
+3. `git commit -m "…"` with a short, imperative summary (optional prefix: `feat:`, `fix:`, `refactor:`, `ui:`, `test:`).
+
+Commit **once per logical batch** from that prompt. If one reply contains **unrelated** fixes (e.g. separate bug + feature), prefer **separate commits** so history stays readable.
+
+## Do not commit
+
+- Ignored paths (e.g. `.godot/`, build/export dirs per `.gitignore`).
+- Secrets or credentials.
+- Known-broken WIP **unless** the user asked to checkpoint; otherwise commit when the slice is in a sensible state.
+
+## If there is nothing new to commit
+
+Say so briefly—do not fabricate an empty commit.
+
+## Identity
+
+Uses repo-local `git config` if present; do not overwrite user global config without their ask.
