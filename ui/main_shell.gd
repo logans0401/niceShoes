@@ -185,7 +185,13 @@ func _ready() -> void:
 		_bc_btn_inspect.pressed.connect(_on_bc_inspect_pressed)
 	if _btn_bc_meditate != null:
 		_btn_bc_meditate.pressed.connect(_on_bc_meditate_pressed)
+	set_process(true)
 	_refresh_selection_portrait()
+
+
+func _process(_delta: float) -> void:
+	## Creation dialog: sample HSlider.value every idle frame (value_changed can fail to drive model).
+	_tick_creation_sliders_to_alloc_if_open()
 
 
 func _physics_process(delta: float) -> void:
@@ -870,6 +876,34 @@ func _refresh_creation_increment_buttons() -> void:
 			(pb as BaseButton).disabled = v >= max_v
 
 
+## Read HSlider.Range values directly while the dialog is visible (value_changed unreliable for some setups).
+func _tick_creation_sliders_to_alloc_if_open() -> void:
+	if _creation_dialog == null or not is_instance_valid(_creation_dialog) or not _creation_dialog.visible:
+		return
+	if _creation_sliders_by_attr.is_empty():
+		return
+	var floor_i: int = _creation_balance_config().creation_attribute_floor
+	var saw_change: bool = false
+	for _stab in range(12):
+		var round_change: bool = false
+		for attr in _Sch.ALL_ATTRIBUTES:
+			var slid: Variant = _creation_sliders_by_attr.get(attr, null)
+			if slid is Range:
+				var r: Range = slid as Range
+				var mx: int = _creation_max_slice_for_attribute(attr)
+				var slices: int = clampi(int(round(r.value)), 0, mx)
+				var want: int = floor_i + slices
+				var have: int = int(_creation_alloc.get(attr, floor_i))
+				if want != have:
+					_creation_alloc[attr] = want
+					round_change = true
+					saw_change = true
+		if not round_change:
+			break
+	if saw_change:
+		_refresh_creation_alloc_ui()
+
+
 func _refresh_creation_alloc_ui() -> void:
 	var cfg: CharacterBalanceConfig = _creation_balance_config()
 	var floor_i: int = cfg.creation_attribute_floor
@@ -890,21 +924,6 @@ func _refresh_creation_alloc_ui() -> void:
 		if ok != null:
 			var name_ok: bool = not _creation_name_edit.text.strip_edges().is_empty()
 			ok.disabled = rem != 0 or not name_ok
-
-
-func _creation_slider_value_changed(signal_attr: String, _sig_value_unused: float) -> void:
-	## Single-bound Callable: appended arg is emitted float — take slider instance from lookup.
-	var slid: Variant = _creation_sliders_by_attr.get(signal_attr, null)
-	if slid is Range:
-		_creation_apply_slider_slice_from_range(signal_attr, slid as Range)
-
-
-func _creation_apply_slider_slice_from_range(attr: String, slider: Range) -> void:
-	var floor_i: int = _creation_balance_config().creation_attribute_floor
-	var mx: int = _creation_max_slice_for_attribute(attr)
-	var slices: int = clampi(int(round(slider.value)), 0, mx)
-	_creation_alloc[attr] = floor_i + slices
-	_refresh_creation_alloc_ui()
 
 
 func _on_creation_attr_adjust(attr: String, delta: int) -> void:
@@ -1005,7 +1024,7 @@ func _ensure_creation_dialog() -> void:
 		slid.step = 1.0
 		slid.rounded = true
 		slid.focus_mode = Control.FOCUS_CLICK
-		slid.value_changed.connect(_creation_slider_value_changed.bind(attr))
+		slid.mouse_filter = Control.MOUSE_FILTER_STOP
 		var plus_b := Button.new()
 		plus_b.text = "+"
 		plus_b.custom_minimum_size = Vector2(36, 30)
