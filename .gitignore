@@ -1,0 +1,17 @@
+# Godot 4
+.godot/
+*.translation
+export_presets.cfg
+
+# OS / tooling
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs / temp
+*.log
+*.tmp
+
+# Exports (adjust if you commit export presets without secrets)
+export/
+exports/

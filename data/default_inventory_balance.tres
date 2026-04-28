@@ -1,0 +1,6 @@
+[gd_resource type="Resource" script_class="InventoryBalanceConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/inventory_balance_config.gd" id="1_invb"]
+
+[resource]
+script = ExtResource("1_invb")

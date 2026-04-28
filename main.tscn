@@ -1,0 +1,83 @@
+[gd_scene load_steps=21 format=3]
+
+[ext_resource type="Script" path="res://main.gd" id="1_main"]
+[ext_resource type="PackedScene" path="res://ui/main_shell.tscn" id="2_shell"]
+[ext_resource type="Script" path="res://systems/inventory_system.gd" id="3_inv"]
+[ext_resource type="Script" path="res://systems/equipment_system.gd" id="4_eq"]
+[ext_resource type="Script" path="res://systems/stats_system.gd" id="5_stats"]
+[ext_resource type="Script" path="res://systems/skill_system.gd" id="6_skill"]
+[ext_resource type="Script" path="res://systems/quest_system.gd" id="7_quest"]
+[ext_resource type="Script" path="res://systems/automation_system.gd" id="8_auto"]
+[ext_resource type="Script" path="res://systems/group_system.gd" id="9_group"]
+[ext_resource type="Script" path="res://systems/combat_system.gd" id="10_combat"]
+[ext_resource type="Script" path="res://systems/loot_system.gd" id="11_loot"]
+[ext_resource type="Script" path="res://systems/map_transition_system.gd" id="12_map"]
+[ext_resource type="Script" path="res://systems/character_registry_system.gd" id="13_reg"]
+[ext_resource type="Script" path="res://systems/character_progression_system.gd" id="14_prog"]
+[ext_resource type="Script" path="res://systems/character_save_system.gd" id="15_save"]
+[ext_resource type="Script" path="res://systems/item_catalog.gd" id="16_cat"]
+[ext_resource type="Script" path="res://systems/trade_system.gd" id="17_trade"]
+[ext_resource type="Script" path="res://systems/merchant_system.gd" id="18_merch"]
+[ext_resource type="Script" path="res://systems/ground_items_system.gd" id="19_ground"]
+[ext_resource type="Script" path="res://systems/corpse_loot_system.gd" id="20_corpse"]
+
+[node name="Main" type="Node"]
+script = ExtResource("1_main")
+
+[node name="Systems" type="Node" parent="."]
+
+[node name="CharacterRegistrySystem" type="Node" parent="Systems"]
+script = ExtResource("13_reg")
+
+[node name="CharacterProgressionSystem" type="Node" parent="Systems"]
+script = ExtResource("14_prog")
+
+[node name="CharacterSaveSystem" type="Node" parent="Systems"]
+script = ExtResource("15_save")
+
+[node name="ItemCatalog" type="Node" parent="Systems"]
+script = ExtResource("16_cat")
+
+[node name="InventorySystem" type="Node" parent="Systems"]
+script = ExtResource("3_inv")
+
+[node name="EquipmentSystem" type="Node" parent="Systems"]
+script = ExtResource("4_eq")
+
+[node name="TradeSystem" type="Node" parent="Systems"]
+script = ExtResource("17_trade")
+
+[node name="MerchantSystem" type="Node" parent="Systems"]
+script = ExtResource("18_merch")
+
+[node name="GroundItemsSystem" type="Node" parent="Systems"]
+script = ExtResource("19_ground")
+
+[node name="CorpseLootSystem" type="Node" parent="Systems"]
+script = ExtResource("20_corpse")
+
+[node name="LootSystem" type="Node" parent="Systems"]
+script = ExtResource("11_loot")
+
+[node name="StatsSystem" type="Node" parent="Systems"]
+script = ExtResource("5_stats")
+
+[node name="SkillSystem" type="Node" parent="Systems"]
+script = ExtResource("6_skill")
+
+[node name="QuestSystem" type="Node" parent="Systems"]
+script = ExtResource("7_quest")
+
+[node name="AutomationSystem" type="Node" parent="Systems"]
+script = ExtResource("8_auto")
+
+[node name="GroupSystem" type="Node" parent="Systems"]
+script = ExtResource("9_group")
+
+[node name="CombatSystem" type="Node" parent="Systems"]
+script = ExtResource("10_combat")
+
+[node name="MapTransitionSystem" type="Node" parent="Systems"]
+script = ExtResource("12_map")
+
+[node name="UI" parent="." instance=ExtResource("2_shell")]

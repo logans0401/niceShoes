@@ -1,0 +1,139 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://ui/character_card.gd" id="1_card"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_pb_bg"]
+bg_color = Color(0.1, 0.1, 0.12, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_h"]
+bg_color = Color(0.55, 0.22, 0.24, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_s"]
+bg_color = Color(0.72, 0.58, 0.2, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_m"]
+bg_color = Color(0.22, 0.42, 0.72, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
+bg_color = Color(0.14, 0.15, 0.18, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.35, 0.38, 0.45, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="CharacterCard" type="PanelContainer"]
+custom_minimum_size = Vector2(88, 152)
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+script = ExtResource("1_card")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="VBox" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="PortraitFrame" type="Control" parent="Margin/VBox"]
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Portrait" type="ColorRect" parent="Margin/VBox/PortraitFrame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.32, 0.36, 0.42, 1)
+
+[node name="BtnAdd" type="Button" parent="Margin/VBox/PortraitFrame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+focus_mode = 0
+flat = true
+theme_override_colors/font_color = Color(0.55, 0.58, 0.65, 1)
+theme_override_colors/font_hover_color = Color(0.75, 0.78, 0.85, 1)
+theme_override_colors/font_pressed_color = Color(0.95, 0.96, 0.98, 1)
+theme_override_font_sizes/font_size = 36
+text = "+"
+
+[node name="NameLabel" type="Label" parent="Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.9, 0.91, 0.93, 1)
+theme_override_font_sizes/font_size = 11
+text = ""
+horizontal_alignment = 1
+text_overrun_behavior = 3
+
+[node name="BarsColumn" type="VBoxContainer" parent="Margin/VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 3
+
+[node name="BarHealth" type="ProgressBar" parent="Margin/VBox/BarsColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 7)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_pb_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_h")
+show_percentage = false
+
+[node name="BarStamina" type="ProgressBar" parent="Margin/VBox/BarsColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 7)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_pb_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_s")
+show_percentage = false
+
+[node name="BarMana" type="ProgressBar" parent="Margin/VBox/BarsColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 7)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_pb_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_m")
+show_percentage = false

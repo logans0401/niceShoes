@@ -1,0 +1,879 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://ui/main_shell.gd" id="1_shell"]
+[ext_resource type="Script" path="res://ui/automation_queue_host.gd" id="2_qhost"]
+
+[node name="MainShell" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_shell")
+
+[node name="ShellBackdrop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.270588, 0.152941, 0.0666667, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="RootColumn" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+size_flags_vertical = 3
+
+[node name="HudStrip" type="PanelContainer" parent="Margin/RootColumn"]
+layout_mode = 2
+
+[node name="HudHBox" type="HBoxContainer" parent="Margin/RootColumn/HudStrip"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="HudBlockHealth" type="VBoxContainer" parent="Margin/RootColumn/HudStrip/HudHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.0
+theme_override_constants/separation = 4
+
+[node name="HudHealth" type="ProgressBar" parent="Margin/RootColumn/HudStrip/HudHBox/HudBlockHealth"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 22)
+layout_mode = 2
+size_flags_horizontal = 3
+show_percentage = false
+
+[node name="HudHealthValue" type="Label" parent="Margin/RootColumn/HudStrip/HudHBox/HudBlockHealth/HudHealth"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.96, 0.97, 0.98, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.88)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 11
+text = "— / —"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="HudBlockStamina" type="VBoxContainer" parent="Margin/RootColumn/HudStrip/HudHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.0
+theme_override_constants/separation = 4
+
+[node name="HudStamina" type="ProgressBar" parent="Margin/RootColumn/HudStrip/HudHBox/HudBlockStamina"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 22)
+layout_mode = 2
+size_flags_horizontal = 3
+show_percentage = false
+
+[node name="HudStaminaValue" type="Label" parent="Margin/RootColumn/HudStrip/HudHBox/HudBlockStamina/HudStamina"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.96, 0.97, 0.98, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.88)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 11
+text = "— / —"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="HudBlockMana" type="VBoxContainer" parent="Margin/RootColumn/HudStrip/HudHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.0
+theme_override_constants/separation = 4
+
+[node name="HudMana" type="ProgressBar" parent="Margin/RootColumn/HudStrip/HudHBox/HudBlockMana"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 22)
+layout_mode = 2
+size_flags_horizontal = 3
+show_percentage = false
+
+[node name="HudManaValue" type="Label" parent="Margin/RootColumn/HudStrip/HudHBox/HudBlockMana/HudMana"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.96, 0.97, 0.98, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.88)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 11
+text = "— / —"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="MidRow" type="HBoxContainer" parent="Margin/RootColumn"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="LeftColumn" type="VBoxContainer" parent="Margin/RootColumn/MidRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 2.5
+theme_override_constants/separation = 8
+
+[node name="PanelA_World" type="PanelContainer" parent="Margin/RootColumn/MidRow/LeftColumn"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="WorldInterior" type="VBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/PanelA_World"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="PanelA_Header" type="HBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/PanelA_World/WorldInterior"]
+layout_mode = 2
+
+[node name="PanelATag" type="Label" parent="Margin/RootColumn/MidRow/LeftColumn/PanelA_World/WorldInterior/PanelA_Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.58, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "PANEL A"
+
+[node name="PanelATitle" type="Label" parent="Margin/RootColumn/MidRow/LeftColumn/PanelA_World/WorldInterior/PanelA_Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.9, 0.92, 1)
+theme_override_font_sizes/font_size = 14
+text = "Rendered game world"
+
+[node name="HudZoneLabel" type="Label" parent="Margin/RootColumn/MidRow/LeftColumn/PanelA_World/WorldInterior/PanelA_Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.65, 0.72, 1)
+theme_override_font_sizes/font_size = 11
+text = "Zone: —"
+horizontal_alignment = 2
+
+[node name="WorldViewportContainer" type="SubViewportContainer" parent="Margin/RootColumn/MidRow/LeftColumn/PanelA_World/WorldInterior"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+stretch = true
+mouse_filter = 0
+
+[node name="WorldViewport" type="SubViewport" parent="Margin/RootColumn/MidRow/LeftColumn/PanelA_World/WorldInterior/WorldViewportContainer"]
+unique_name_in_owner = true
+handle_input_locally = false
+size = Vector2i(960, 540)
+render_target_update_mode = 4
+
+[node name="BottomBand" type="HBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PanelB_Cards" type="PanelContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 3.0
+
+[node name="PanelB_Interior" type="VBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelB_Cards"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="PanelB_Header" type="HBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelB_Cards/PanelB_Interior"]
+layout_mode = 2
+
+[node name="PanelBTag" type="Label" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelB_Cards/PanelB_Interior/PanelB_Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.58, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "PANEL B"
+
+[node name="PanelBTitle" type="Label" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelB_Cards/PanelB_Interior/PanelB_Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.9, 0.92, 1)
+theme_override_font_sizes/font_size = 14
+text = "Character cards"
+
+[node name="PanelB_CharacterBar" type="HBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelB_Cards/PanelB_Interior"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BtnLogIn" type="Button" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelB_Cards/PanelB_Interior/PanelB_CharacterBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Log in"
+
+[node name="BtnLogOut" type="Button" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelB_Cards/PanelB_Interior/PanelB_CharacterBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Log out"
+
+[node name="CardsScroll" type="ScrollContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelB_Cards/PanelB_Interior"]
+custom_minimum_size = Vector2(0, 108)
+layout_mode = 2
+horizontal_scroll_mode = 1
+vertical_scroll_mode = 0
+
+[node name="CharacterCardsHBox" type="HBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelB_Cards/PanelB_Interior/CardsScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="PanelBC_CharActions" type="PanelContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand"]
+custom_minimum_size = Vector2(148, 0)
+layout_mode = 2
+
+[node name="PanelBCInterior" type="VBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBC_CharActions"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="PanelBCHeader" type="HBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBC_CharActions/PanelBCInterior"]
+layout_mode = 2
+
+[node name="PanelBCTag" type="Label" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBC_CharActions/PanelBCInterior/PanelBCHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.58, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "PANEL B.c"
+
+[node name="PanelBCTitle" type="Label" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBC_CharActions/PanelBCInterior/PanelBCHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.9, 0.92, 1)
+theme_override_font_sizes/font_size = 13
+text = "Actions"
+
+[node name="BtnBCMeditate" type="Button" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBC_CharActions/PanelBCInterior"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Meditate"
+
+[node name="BtnBCAttack" type="Button" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBC_CharActions/PanelBCInterior"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "Attack"
+
+[node name="BtnBCInspect" type="Button" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBC_CharActions/PanelBCInterior"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Inspect"
+
+[node name="PanelBD_Spells" type="PanelContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+
+[node name="PanelBDInterior" type="VBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBD_Spells"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="PanelBDHeader" type="HBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBD_Spells/PanelBDInterior"]
+layout_mode = 2
+
+[node name="PanelBDTag" type="Label" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBD_Spells/PanelBDInterior/PanelBDHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.58, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "PANEL B.d"
+
+[node name="PanelBDTitle" type="Label" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBD_Spells/PanelBDInterior/PanelBDHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.9, 0.92, 1)
+theme_override_font_sizes/font_size = 13
+text = "Spells"
+
+[node name="LblBDSelectedSpell" type="Label" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBD_Spells/PanelBDInterior"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.74, 0.78, 1)
+theme_override_font_sizes/font_size = 11
+text = "Selected: —"
+autowrap_mode = 3
+
+[node name="SpellsScroll" type="ScrollContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBD_Spells/PanelBDInterior"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 120)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SpellsListHost" type="VBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBD_Spells/PanelBDInterior/SpellsScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="PanelBB_Selection" type="PanelContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand"]
+custom_minimum_size = Vector2(220, 0)
+layout_mode = 2
+
+[node name="PanelBBInterior" type="VBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBB_Selection"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="PanelBBHeader" type="HBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBB_Selection/PanelBBInterior"]
+layout_mode = 2
+
+[node name="PanelBBTag" type="Label" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBB_Selection/PanelBBInterior/PanelBBHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.58, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "PANEL B.b"
+
+[node name="PanelBBHdrTitle" type="Label" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBB_Selection/PanelBBInterior/PanelBBHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.9, 0.92, 1)
+theme_override_font_sizes/font_size = 13
+text = "Selection"
+
+[node name="PanelBBAspect" type="AspectRatioContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBB_Selection/PanelBBInterior"]
+custom_minimum_size = Vector2(0, 92)
+layout_mode = 2
+ratio = 1.0
+
+[node name="PanelBBFallback" type="ColorRect" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBB_Selection/PanelBBInterior/PanelBBAspect"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.22, 0.24, 0.3, 1)
+
+[node name="PanelBBPortrait" type="TextureRect" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBB_Selection/PanelBBInterior/PanelBBAspect"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="PanelBBTitle" type="Label" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBB_Selection/PanelBBInterior"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Nothing selected"
+autowrap_mode = 2
+
+[node name="PanelBBSubtitle" type="Label" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBB_Selection/PanelBBInterior"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.65, 0.72, 1)
+theme_override_font_sizes/font_size = 10
+text = "Click world or inventory. Shift+click bag/equip to use."
+autowrap_mode = 3
+
+[node name="PanelBBVitals" type="VBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBB_Selection/PanelBBInterior"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="PanelBBBarHealth" type="ProgressBar" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBB_Selection/PanelBBInterior/PanelBBVitals"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+size_flags_horizontal = 3
+show_percentage = false
+
+[node name="PanelBBBarStamina" type="ProgressBar" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBB_Selection/PanelBBInterior/PanelBBVitals"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+size_flags_horizontal = 3
+show_percentage = false
+
+[node name="PanelBBBarMana" type="ProgressBar" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBB_Selection/PanelBBInterior/PanelBBVitals"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+size_flags_horizontal = 3
+show_percentage = false
+
+[node name="PanelBBActions" type="HBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBB_Selection/PanelBBInterior"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="BtnBBEquip" type="Button" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBB_Selection/PanelBBInterior/PanelBBActions"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Equip"
+
+[node name="BtnBBReadScroll" type="Button" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBB_Selection/PanelBBInterior/PanelBBActions"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Read scroll"
+
+[node name="PanelBA_Group" type="PanelContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand"]
+custom_minimum_size = Vector2(168, 0)
+layout_mode = 2
+
+[node name="PanelBA_Interior" type="VBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBA_Group"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="PanelBA_Header" type="HBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBA_Group/PanelBA_Interior"]
+layout_mode = 2
+
+[node name="PanelBATag" type="Label" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBA_Group/PanelBA_Interior/PanelBA_Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.58, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "PANEL B.a"
+
+[node name="PanelBATitle" type="Label" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBA_Group/PanelBA_Interior/PanelBA_Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.9, 0.92, 1)
+theme_override_font_sizes/font_size = 13
+text = "Group"
+
+[node name="BtnNewGroup" type="Button" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBA_Group/PanelBA_Interior/PanelBA_Header"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(30, 28)
+layout_mode = 2
+focus_mode = 0
+text = "+"
+
+[node name="GroupCycleRow" type="HBoxContainer" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBA_Group/PanelBA_Interior"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 6
+
+[node name="BtnCycleGroupUp" type="Button" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBA_Group/PanelBA_Interior/GroupCycleRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Previous group"
+text = "↑"
+
+[node name="BtnCycleGroupDown" type="Button" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBA_Group/PanelBA_Interior/GroupCycleRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Next group"
+text = "↓"
+
+[node name="GroupCaption" type="Label" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBA_Group/PanelBA_Interior"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Party"
+
+[node name="GroupSelector" type="OptionButton" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBA_Group/PanelBA_Interior"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="BtnGroupManage" type="Button" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBA_Group/PanelBA_Interior"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Roster"
+
+[node name="RightColumn" type="VBoxContainer" parent="Margin/RootColumn/MidRow"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.0
+theme_override_constants/separation = 8
+
+[node name="PanelD_Info" type="PanelContainer" parent="Margin/RootColumn/MidRow/RightColumn"]
+clip_contents = true
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 3.0
+
+[node name="PanelD_VBox" type="VBoxContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelD_Info"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="PanelD_Header" type="HBoxContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelD_Info/PanelD_VBox"]
+layout_mode = 2
+
+[node name="PanelDTag" type="Label" parent="Margin/RootColumn/MidRow/RightColumn/PanelD_Info/PanelD_VBox/PanelD_Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.58, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "PANEL D"
+
+[node name="PanelDContextTitle" type="Label" parent="Margin/RootColumn/MidRow/RightColumn/PanelD_Info/PanelD_VBox/PanelD_Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.9, 0.92, 1)
+theme_override_font_sizes/font_size = 14
+text = "Summary"
+
+[node name="PanelDBody" type="MarginContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelD_Info/PanelD_VBox"]
+clip_contents = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="TabContentStack" type="Control" parent="Margin/RootColumn/MidRow/RightColumn/PanelD_Info/PanelD_VBox/PanelDBody"]
+clip_contents = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="PanelDInventoryHost" type="Control" parent="Margin/RootColumn/MidRow/RightColumn/PanelD_Info/PanelD_VBox/PanelDBody/TabContentStack"]
+unique_name_in_owner = true
+clip_contents = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PanelDAttributesHost" type="Control" parent="Margin/RootColumn/MidRow/RightColumn/PanelD_Info/PanelD_VBox/PanelDBody/TabContentStack"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PanelDSkillsHost" type="Control" parent="Margin/RootColumn/MidRow/RightColumn/PanelD_Info/PanelD_VBox/PanelDBody/TabContentStack"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PanelDQuestHost" type="Control" parent="Margin/RootColumn/MidRow/RightColumn/PanelD_Info/PanelD_VBox/PanelDBody/TabContentStack"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PanelDAutomationHost" type="Control" parent="Margin/RootColumn/MidRow/RightColumn/PanelD_Info/PanelD_VBox/PanelDBody/TabContentStack"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="QuestBody" type="VBoxContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelD_Info/PanelD_VBox/PanelDBody/TabContentStack/PanelDQuestHost"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 4.0
+offset_top = 4.0
+offset_right = -4.0
+offset_bottom = -4.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 6
+
+[node name="QuestHint" type="Label" parent="Margin/RootColumn/MidRow/RightColumn/PanelD_Info/PanelD_VBox/PanelDBody/TabContentStack/PanelDQuestHost/QuestBody"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.8, 0.84, 1)
+text = "Select a quest to read details. Abandon is only available for quests in progress."
+
+[node name="QuestPlaceholderList" type="ItemList" parent="Margin/RootColumn/MidRow/RightColumn/PanelD_Info/PanelD_VBox/PanelDBody/TabContentStack/PanelDQuestHost/QuestBody"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 120)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="QuestDescription" type="RichTextLabel" parent="Margin/RootColumn/MidRow/RightColumn/PanelD_Info/PanelD_VBox/PanelDBody/TabContentStack/PanelDQuestHost/QuestBody"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = true
+fit_content = true
+scroll_active = true
+theme_override_colors/default_color = Color(0.82, 0.84, 0.88, 1)
+theme_override_font_sizes/normal_font_size = 12
+
+[node name="BtnQuestAbandon" type="Button" parent="Margin/RootColumn/MidRow/RightColumn/PanelD_Info/PanelD_VBox/PanelDBody/TabContentStack/PanelDQuestHost/QuestBody"]
+unique_name_in_owner = true
+layout_mode = 2
+disabled = true
+text = "Abandon selected quest"
+
+[node name="PanelC_TabBar" type="PanelContainer" parent="Margin/RootColumn/MidRow/RightColumn"]
+custom_minimum_size = Vector2(0, 88)
+layout_mode = 2
+
+[node name="PanelC_VBox" type="VBoxContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelC_TabBar"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="PanelC_Header" type="HBoxContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelC_TabBar/PanelC_VBox"]
+layout_mode = 2
+
+[node name="PanelCTag" type="Label" parent="Margin/RootColumn/MidRow/RightColumn/PanelC_TabBar/PanelC_VBox/PanelC_Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.58, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "PANEL C"
+
+[node name="PanelCTitle" type="Label" parent="Margin/RootColumn/MidRow/RightColumn/PanelC_TabBar/PanelC_VBox/PanelC_Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.9, 0.92, 1)
+theme_override_font_sizes/font_size = 13
+text = "Tabs (drives Panel D above)"
+
+[node name="TabButtonRow" type="HBoxContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelC_TabBar/PanelC_VBox"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="BtnTabInventory" type="Button" parent="Margin/RootColumn/MidRow/RightColumn/PanelC_TabBar/PanelC_VBox/TabButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+button_pressed = true
+text = "Inventory"
+
+[node name="BtnTabAttributes" type="Button" parent="Margin/RootColumn/MidRow/RightColumn/PanelC_TabBar/PanelC_VBox/TabButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+text = "Attributes"
+
+[node name="BtnTabSkills" type="Button" parent="Margin/RootColumn/MidRow/RightColumn/PanelC_TabBar/PanelC_VBox/TabButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+text = "Skills"
+
+[node name="BtnTabQuests" type="Button" parent="Margin/RootColumn/MidRow/RightColumn/PanelC_TabBar/PanelC_VBox/TabButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+text = "Quest Log"
+
+[node name="BtnTabAutomation" type="Button" parent="Margin/RootColumn/MidRow/RightColumn/PanelC_TabBar/PanelC_VBox/TabButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+text = "Automation"
+
+[node name="PanelE_Automation" type="PanelContainer" parent="Margin/RootColumn/MidRow/RightColumn"]
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 1.0
+
+[node name="PanelE_Interior" type="VBoxContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="PanelE_Header" type="HBoxContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior"]
+layout_mode = 2
+
+[node name="PanelETag" type="Label" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.58, 0.65, 1)
+theme_override_font_sizes/font_size = 11
+text = "PANEL E"
+
+[node name="PanelETitle" type="Label" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.88, 0.9, 0.92, 1)
+theme_override_font_sizes/font_size = 14
+text = "Automation (Panel B selection)"
+
+[node name="PanelE_Split" type="HSplitContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior"]
+layout_mode = 2
+size_flags_vertical = 3
+split_offset = 280
+
+[node name="AutomationColumn" type="VBoxContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="AutomationRunnerRow" type="HBoxContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/AutomationColumn"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="RunnerCaption" type="Label" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/AutomationColumn/AutomationRunnerRow"]
+custom_minimum_size = Vector2(48, 0)
+layout_mode = 2
+text = "Runner"
+
+[node name="AutomationRunnerSelect" type="OptionButton" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/AutomationColumn/AutomationRunnerRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ActiveCaption" type="Label" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/AutomationColumn"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.7, 0.75, 1)
+theme_override_font_sizes/font_size = 11
+text = "Active task"
+
+[node name="AutomationActive" type="RichTextLabel" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/AutomationColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+bbcode_enabled = true
+fit_content = true
+scroll_active = true
+text = "—"
+
+[node name="QueueCaption" type="Label" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/AutomationColumn"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.7, 0.75, 1)
+theme_override_font_sizes/font_size = 11
+text = "Queued (Loop = repeat on success · drag task text to reorder)"
+
+[node name="AutomationQueueScroll" type="ScrollContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/AutomationColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="AutomationQueueHost" type="VBoxContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/AutomationColumn/AutomationQueueScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+script = ExtResource("2_qhost")
+
+[node name="AutomationActions" type="HBoxContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/AutomationColumn"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BtnInterrupt" type="Button" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/AutomationColumn/AutomationActions"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Interrupt"
+
+[node name="BtnResume" type="Button" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/AutomationColumn/AutomationActions"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Resume"
+
+[node name="PreviousCaption" type="Label" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/AutomationColumn"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.7, 0.75, 1)
+theme_override_font_sizes/font_size = 11
+text = "Previous tasks"
+
+[node name="AutomationPrevious" type="ItemList" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/AutomationColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+
+[node name="StatusCaption" type="Label" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/AutomationColumn"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.7, 0.75, 1)
+theme_override_font_sizes/font_size = 11
+text = "Automation status log"
+
+[node name="AutomationStatusLog" type="ItemList" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/AutomationColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+
+[node name="AutomationStatus" type="Label" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/AutomationColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.62, 0.68, 1)
+theme_override_font_sizes/font_size = 11
+text = "Summary: —"
+
+[node name="CommandColumn" type="VBoxContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="FeedTabs" type="TabContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/CommandColumn"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 12
+
+[node name="Command" type="MarginContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/CommandColumn/FeedTabs"]
+layout_mode = 2
+theme_override_constants/margin_left = 2
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 2
+theme_override_constants/margin_bottom = 2
+
+[node name="CommandFeed" type="RichTextLabel" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/CommandColumn/FeedTabs/Command"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = false
+scroll_following = true
+text = "Command messages for the selected character."
+
+[node name="Combat" type="MarginContainer" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/CommandColumn/FeedTabs"]
+layout_mode = 2
+theme_override_constants/margin_left = 2
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 2
+theme_override_constants/margin_bottom = 2
+
+[node name="CombatFeed" type="RichTextLabel" parent="Margin/RootColumn/MidRow/RightColumn/PanelE_Automation/PanelE_Interior/PanelE_Split/CommandColumn/FeedTabs/Combat"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = false
+scroll_following = true
+text = "Combat and magic messages for the selected character."
