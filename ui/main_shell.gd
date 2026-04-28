@@ -2696,7 +2696,7 @@ func _rebuild_attributes_panel() -> void:
 			lblv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			lblv.clip_text = true
 			var btnv := Button.new()
-			btnv.text = "Raise max · %d XP" % vcost
+			btnv.text = "Raise · %d XP" % vcost
 			btnv.custom_minimum_size = Vector2(0, float(_PROGRESSION_RAISE_BTN_MIN_HEIGHT_PX))
 			btnv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			btnv.disabled = int(data.unspent_experience) < vcost
