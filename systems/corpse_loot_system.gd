@@ -5,6 +5,7 @@ var _inventory: Node
 var _trade: Node
 var _inv_cfg: Resource
 @export var corpse_decay_seconds: float = 60.0
+var _last_loot_failure_reason: String = ""
 
 ## corpse_id -> { "bag": Array same shape as inventory bag, "position": Vector2, "ttl": float }
 var _corpses: Dictionary = {}
@@ -39,26 +40,36 @@ func get_corpse_position(corpse_id: StringName) -> Vector2:
 	return c.get("position", Vector2.ZERO) as Vector2
 
 
+func get_last_loot_failure_reason() -> String:
+	return _last_loot_failure_reason
+
+
 func loot_bag_slot_to_character(
 	looter_id: StringName,
 	corpse_id: StringName,
 	corpse_slot: int,
 ) -> Error:
+	_last_loot_failure_reason = ""
 	if _inventory == null or _trade == null:
+		_last_loot_failure_reason = "loot system unavailable"
 		return FAILED
 	var corpse: Dictionary = _corpses.get(corpse_id, {}) as Dictionary
 	if corpse.is_empty():
+		_last_loot_failure_reason = "corpse missing"
 		return ERR_DOES_NOT_EXIST
 	var bag: Array = corpse.get("bag", []) as Array
 	if corpse_slot < 0 or corpse_slot >= bag.size():
+		_last_loot_failure_reason = "invalid corpse slot"
 		return FAILED
 	var cell: Variant = bag[corpse_slot]
 	if cell == null:
+		_last_loot_failure_reason = "corpse slot empty"
 		return ERR_DOES_NOT_EXIST
 	var looter_pos: Vector2 = _trade.get_character_position(looter_id)
 	var corpse_pos: Vector2 = get_corpse_position(corpse_id)
 	var max_r: float = float(_inv_cfg.trade_range)
 	if looter_pos.distance_to(corpse_pos) > max_r:
+		_last_loot_failure_reason = "range %.1f > %.1f" % [looter_pos.distance_to(corpse_pos), max_r]
 		return FAILED
 	var cdict: Dictionary = cell as Dictionary
 	var qty: int = int(cdict.get("quantity", 0))
@@ -70,6 +81,7 @@ func loot_bag_slot_to_character(
 		overflow = _inventory.try_add_item(looter_id, item_id, qty)
 	if overflow > 0:
 		if overflow == qty:
+			_last_loot_failure_reason = "bag full"
 			return FAILED
 		cdict["quantity"] = overflow
 		bag[corpse_slot] = cdict

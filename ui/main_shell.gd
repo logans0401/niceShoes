@@ -125,6 +125,7 @@ var _btn_automation_preset_apply: Button = null
 var _option_popup_theme: Theme
 var _quest: QuestSystem
 var _merchant: MerchantSystem = null
+var _trade: TradeSystem = null
 var _support_profile_list: AutomationSupportProfileList = null
 ## Optional runtime-added profiles from Apply preset (supporter / ally pairs).
 var _support_profiles_runtime: Array = []
@@ -217,6 +218,7 @@ func _physics_process(delta: float) -> void:
 		_tick_automation_support_evaluation()
 		_automation.tick(delta)
 	_apply_follow_movement(delta)
+	_sync_trade_positions_from_world()
 	_tick_player_spell_cast(delta)
 	_tick_ui_directed_attack(delta)
 	_tick_hostile_enemies(delta)
@@ -539,6 +541,11 @@ func bind_quest_system(system: QuestSystem) -> void:
 
 func bind_merchant_system(merchant: MerchantSystem) -> void:
 	_merchant = merchant
+
+
+func bind_trade_system(trade: TradeSystem) -> void:
+	_trade = trade
+	_sync_trade_positions_from_world()
 
 
 func _on_quest_state_changed(_qid: StringName, _st: int) -> void:
@@ -1442,6 +1449,7 @@ func _tick_automation_corpse_loot() -> void:
 		for i in range(bag.size()):
 			if bag[i] == null:
 				continue
+			_sync_trade_positions_from_world()
 			var err: Error = _corpse.loot_bag_slot_to_character(cid, corpse_id, i)
 			if err == OK:
 				task.data["use_external_completion"] = true
@@ -2637,6 +2645,15 @@ func _apply_world_control_focus() -> void:
 			node.set_controlled(cid == _focus_character_id)
 
 
+func _sync_trade_positions_from_world() -> void:
+	if _trade == null:
+		return
+	for cid in _world_actor_by_id.keys():
+		var node: Node = _world_actor_by_id[cid] as Node
+		if node is Node2D:
+			_trade.set_character_position(cid, (node as Node2D).global_position)
+
+
 func _sync_world_actor_colors_from_cards() -> void:
 	for i in range(_party_cards.size()):
 		var card: Node = _party_cards[i]
@@ -3739,13 +3756,15 @@ func _open_corpse_loot_dialog(corpse_id: StringName) -> void:
 		if sel.is_empty():
 			return
 		var slot: int = int(list.get_item_metadata(sel[0]))
+		_sync_trade_positions_from_world()
 		var err: Error = _corpse.loot_bag_slot_to_character(_focus_character_id, corpse_id, slot)
 		if err == OK:
 			_append_command_feed("[loot] Took item from corpse.", _focus_character_id)
 			dlg.queue_free()
 			_refresh_selection_portrait()
 		else:
-			_append_command_feed("[loot] Could not loot corpse (range/bag/full).", _focus_character_id)
+			var reason: String = _corpse.get_last_loot_failure_reason() if _corpse.has_method("get_last_loot_failure_reason") else "range/bag/full"
+			_append_command_feed("[loot] Could not loot corpse (%s)." % reason, _focus_character_id)
 	)
 	root.add_child(btn)
 	dlg.add_child(root)

@@ -956,9 +956,11 @@ func _test_loot_tiers_and_corpse_transfer() -> bool:
 		_free_node(cat)
 		_free_node(reg)
 		return false
-	loot.register_corpse_with_drops(&"corpse_test", Vector2.ZERO, 20)
+	loot.register_corpse_with_drops(&"corpse_test", Vector2(200.0, 0.0), 20)
 	var bag: Array = corpse.get_corpse_bag(&"corpse_test")
-	var ok: bool = not bag.is_empty() and corpse.loot_bag_slot_to_character(&"loot_u", &"corpse_test", 0) == OK
+	var too_far: bool = corpse.loot_bag_slot_to_character(&"loot_u", &"corpse_test", 0) == FAILED
+	trade.set_character_position(&"loot_u", Vector2(200.0, 0.0))
+	var ok: bool = too_far and not bag.is_empty() and corpse.loot_bag_slot_to_character(&"loot_u", &"corpse_test", 0) == OK
 	ok = ok and inv.get_cell(&"loot_u", 0) != null
 	_free_node(loot)
 	_free_node(corpse)

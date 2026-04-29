@@ -142,5 +142,8 @@ func _wire_systems_to_ui() -> void:
 	var merchant_bind: MerchantSystem = _systems.get_node("MerchantSystem") as MerchantSystem
 	if merchant_bind != null and _shell.has_method("bind_merchant_system"):
 		_shell.bind_merchant_system(merchant_bind)
+	var trade_bind: TradeSystem = _systems.get_node("TradeSystem") as TradeSystem
+	if trade_bind != null and _shell.has_method("bind_trade_system"):
+		_shell.bind_trade_system(trade_bind)
 	if _shell.has_method("bind_loot_systems"):
 		_shell.bind_loot_systems(loot, corpse)
