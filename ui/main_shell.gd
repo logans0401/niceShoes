@@ -12,6 +12,7 @@ const _AUTO_GROUP_PREFIX := "group:"
 const _OPTION_POPUP_MIN_HEIGHT_PX := 100
 const _AutomationQueueRowScr: Script = preload("res://ui/automation_queue_row.gd")
 const _AutomationQueueTaskLabelScr: Script = preload("res://ui/automation_queue_task_label.gd")
+const AutomationSupportProfileListScr := preload("res://data/automation_support_profile_list.gd")
 const _MISSILE_RANGE_PX := 190.0
 const _SPELL_CAST_RANGE_PX := 200.0
 const _NO_TARGET_RETRY_MS := 1000
@@ -104,17 +105,25 @@ const _PROGRESSION_ROW_MIN_HEIGHT_PX := 42
 const _PROGRESSION_RAISE_BTN_MIN_HEIGHT_PX := 32
 var _tab_button_group: ButtonGroup = ButtonGroup.new()
 var _tab_index: int = 0
-const _AUTOMATION_PANEL_REVISION: int = 3
+const _AUTOMATION_PANEL_REVISION: int = 8
 var _automation_tab_built_revision: int = 0
 var _opt_follow_target: OptionButton = null
 var _opt_automation_task: OptionButton = null
 var _chk_automation_queue_hold: CheckBox = null
+var _chk_automation_queue_preemption: CheckBox = null
 var _lbl_automation_context: Label = null
 var _automation_follow_block: Control = null
+var _opt_automation_preset: OptionButton = null
+var _btn_automation_preset_apply: Button = null
 
 ## Duplicated from the shell theme so OptionButton popups can override internal ScrollContainer without affecting layout height.
 var _option_popup_theme: Theme
 var _quest: QuestSystem
+var _merchant: MerchantSystem = null
+var _support_profile_list: AutomationSupportProfileList = null
+## Optional runtime-added profiles from Apply preset (supporter / ally pairs).
+var _support_profiles_runtime: Array = []
+var _support_cool_downs_ms: Dictionary = {}
 var _combat: CombatSystem = null
 var _actors_root: Node2D = null
 ## character_id -> CharacterBody2D (world presence)
@@ -196,6 +205,9 @@ func _process(_delta: float) -> void:
 
 func _physics_process(delta: float) -> void:
 	if _automation != null:
+		_sync_automation_external_predicates()
+		_tick_automation_vendor_commerce()
+		_tick_automation_support_evaluation()
 		_automation.tick(delta)
 	_apply_follow_movement(delta)
 	_tick_player_spell_cast(delta)
@@ -515,6 +527,10 @@ func bind_quest_system(system: QuestSystem) -> void:
 	if _quest != null:
 		_quest.quest_state_changed.connect(_on_quest_state_changed)
 	_rebuild_quest_panel()
+
+
+func bind_merchant_system(merchant: MerchantSystem) -> void:
+	_merchant = merchant
 
 
 func _on_quest_state_changed(_qid: StringName, _st: int) -> void:
@@ -1254,6 +1270,142 @@ func _resolve_runner_to_character_id(runner_id: StringName) -> StringName:
 	return runner_id
 
 
+func _inventory_satisfies_loot_filter(character_id: StringName, loot_filter: Dictionary) -> bool:
+	if _inventory == null or character_id == &"":
+		return false
+	var want_raw: Variant = loot_filter.get("item_id", null)
+	var want: StringName
+	if want_raw is StringName:
+		want = want_raw as StringName
+	elif want_raw != null:
+		want = StringName(str(want_raw))
+	else:
+		want = &""
+	if want == &"":
+		return false
+	var n_slots: int = int(_inventory.get_bag_slot_count())
+	for idx in range(n_slots):
+		var cell: Variant = _inventory.get_cell(character_id, idx)
+		if cell == null:
+			continue
+		var c: Dictionary = cell as Dictionary
+		var item_id: StringName = c.get("item_id", &"") as StringName
+		if item_id == want:
+			return true
+	return false
+
+
+func _sync_automation_external_predicates() -> void:
+	if _automation == null:
+		return
+	for rid in _automation.list_runner_ids():
+		var cid := _resolve_runner_to_character_id(rid)
+		var scan: Array = []
+		var active_v: Variant = _automation.get_active_task_for(rid)
+		if active_v != null:
+			scan.append(active_v)
+		for qtv in _automation.get_queue_snapshot_for(rid):
+			scan.append(qtv)
+		for tv in scan:
+			if tv == null or not tv is AutomationSystem.AutomationTask:
+				continue
+			var at: AutomationSystem.AutomationTask = tv as AutomationSystem.AutomationTask
+			if not bool(at.data.get("use_external_completion", false)):
+				continue
+			match at.type:
+				AutomationSystem.TaskType.COMPLETE_QUEST:
+					if _quest != null:
+						var qid := StringName(str(at.data.get("quest_id", "")))
+						at.data["external_done"] = _quest.get_state(qid) == QuestSystem.QuestState.COMPLETED
+				AutomationSystem.TaskType.SEARCH_LOOT:
+					if cid != &"":
+						at.data["external_done"] = _inventory_satisfies_loot_filter(
+							cid,
+							at.data.get("loot_filter", {}) as Dictionary,
+						)
+				_:
+					pass
+
+
+func _try_automation_sell_one_slot(seller_id: StringName, merchant_id: StringName) -> bool:
+	if _inventory == null or _merchant == null:
+		return false
+	var slot_count: int = int(_inventory.get_bag_slot_count())
+	for idx in range(slot_count):
+		var cell: Variant = _inventory.get_cell(seller_id, idx)
+		if cell == null:
+			continue
+		var c: Dictionary = cell as Dictionary
+		var item_id: StringName = c.get("item_id", &"") as StringName
+		if item_id == &"":
+			continue
+		if _merchant.sell_from_bag(seller_id, merchant_id, idx, 1) == OK:
+			return true
+	return false
+
+
+func _tick_automation_vendor_commerce() -> void:
+	if _automation == null or _merchant == null or _inventory == null:
+		return
+	for rid in _automation.list_runner_ids():
+		var cid := _resolve_runner_to_character_id(rid)
+		if cid == &"":
+			continue
+		var tv: Variant = _automation.get_active_task_for(rid)
+		if tv == null or not tv is AutomationSystem.AutomationTask:
+			continue
+		var task: AutomationSystem.AutomationTask = tv as AutomationSystem.AutomationTask
+		if task.type == AutomationSystem.TaskType.SELL_EXCESS_LOOT and bool(task.data.get("merchant_pipeline", false)):
+			task.data["use_external_completion"] = true
+			if bool(task.data.get("external_done", false)):
+				continue
+			var mid := StringName(str(task.data.get("merchant_id", "default_merchant")))
+			if _try_automation_sell_one_slot(cid, mid):
+				task.data["external_done"] = true
+		elif task.type == AutomationSystem.TaskType.INTERACT:
+			var buy_raw: String = str(task.data.get("merchant_buy_item_id", "")).strip_edges()
+			if buy_raw == "":
+				continue
+			task.data["use_external_completion"] = true
+			if bool(task.data.get("external_done", false)):
+				continue
+			var mid2 := StringName(str(task.data.get("merchant_id", "default_merchant")))
+			var qty: int = maxi(1, int(task.data.get("merchant_buy_qty", 1)))
+			var ierr: Error = _merchant.buy_item(cid, mid2, StringName(buy_raw), qty)
+			if ierr == OK:
+				task.data["external_done"] = true
+
+
+func _tick_automation_support_evaluation() -> void:
+	if _automation == null or _registry == null or _stats == null or _equipment == null:
+		return
+	var prof_list: Array = []
+	if _support_profile_list != null:
+		for p in _support_profile_list.profiles:
+			prof_list.append(p)
+	for p in _support_profiles_runtime:
+		prof_list.append(p)
+	if prof_list.is_empty():
+		return
+	AutomationSupportEvaluator.tick(
+		_automation,
+		_registry,
+		_stats,
+		_equipment,
+		prof_list,
+		_support_cool_downs_ms,
+		Callable(self, "_resolve_runner_to_character_id"),
+	)
+
+
+func _first_active_quest_id_or_default() -> StringName:
+	if _quest != null:
+		for qid in QuestSystem.QUEST_CATALOG.keys():
+			if _quest.get_state(qid) == QuestSystem.QuestState.ACTIVE:
+				return qid
+	return &"demo_gate"
+
+
 func _enemy_engaged_with_party_actor(enemy: Node, ally_id: StringName) -> bool:
 	if ally_id == &"":
 		return false
@@ -1869,6 +2021,10 @@ func bind_automation_system(
 		_automation.status_logged.connect(_on_automation_status_logged)
 		_automation.hunt_world_pulse.connect(_on_hunt_world_pulse)
 		_automation.assist_world_pulse.connect(_on_assist_world_pulse)
+	_support_profile_list = load("res://data/default_automation_support_profiles.tres") as AutomationSupportProfileList
+	if _support_profile_list == null:
+		_support_profile_list = AutomationSupportProfileListScr.new()
+	_sync_automation_preemption_checkbox()
 	_refresh_group_selector()
 	_populate_runner_options()
 	_on_automation_queue_changed()
@@ -1876,6 +2032,14 @@ func bind_automation_system(
 	_sync_automation_to_panel_b_selection()
 	_ensure_automation_tab_controls()
 	_sync_world_actors()
+
+
+func _sync_automation_preemption_checkbox() -> void:
+	if _chk_automation_queue_preemption == null or _automation == null:
+		return
+	_chk_automation_queue_preemption.set_block_signals(true)
+	_chk_automation_queue_preemption.button_pressed = _automation.queue_preempts_lower_priority_active
+	_chk_automation_queue_preemption.set_block_signals(false)
 
 
 func _on_group_roster_changed(_group_id: StringName) -> void:
@@ -2829,12 +2993,20 @@ func _on_buy_skill_pressed(skill_id: StringName) -> void:
 func _ensure_automation_tab_controls() -> void:
 	if _automation_tab_built_revision >= _AUTOMATION_PANEL_REVISION:
 		return
+	var prev_scroll: int = 0
+	for child in _d_automation_host.get_children():
+		if child is ScrollContainer:
+			prev_scroll = (child as ScrollContainer).scroll_vertical
+			break
 	_automation_tab_built_revision = _AUTOMATION_PANEL_REVISION
 	for c in _d_automation_host.get_children():
 		c.queue_free()
 	_opt_follow_target = null
 	_opt_automation_task = null
 	_chk_automation_queue_hold = null
+	_chk_automation_queue_preemption = null
+	_opt_automation_preset = null
+	_btn_automation_preset_apply = null
 	_lbl_automation_context = null
 	_automation_follow_block = null
 	var margin := MarginContainer.new()
@@ -2845,6 +3017,7 @@ func _ensure_automation_tab_controls() -> void:
 	margin.add_theme_constant_override("margin_bottom", 4)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var hint := Label.new()
 	hint.text = "Pick a task, Add to queue, then Begin. When Follow is selected, choose a party follow target below; if B.b has a followable ally, that entry is selected by default."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -2857,6 +3030,12 @@ func _ensure_automation_tab_controls() -> void:
 	_chk_automation_queue_hold.button_pressed = true
 	_chk_automation_queue_hold.toggled.connect(_on_automation_queue_hold_toggled)
 	v.add_child(_chk_automation_queue_hold)
+	_chk_automation_queue_preemption = CheckBox.new()
+	_chk_automation_queue_preemption.text = "Higher queue priority may preempt interruptible tasks"
+	if _automation != null:
+		_chk_automation_queue_preemption.button_pressed = _automation.queue_preempts_lower_priority_active
+	_chk_automation_queue_preemption.toggled.connect(_on_automation_queue_preemption_toggled)
+	v.add_child(_chk_automation_queue_preemption)
 	var row_pick := HBoxContainer.new()
 	row_pick.add_theme_constant_override("separation", 8)
 	var lbl_task := Label.new()
@@ -2871,6 +3050,10 @@ func _ensure_automation_tab_controls() -> void:
 		["Hunt", AutomationSystem.TaskType.HUNT],
 		["Follow", AutomationSystem.TaskType.FOLLOW_CHARACTER],
 		["Assist combat", AutomationSystem.TaskType.ASSIST_COMBAT],
+		["Complete quest", AutomationSystem.TaskType.COMPLETE_QUEST],
+		["Search loot", AutomationSystem.TaskType.SEARCH_LOOT],
+		["Sell excess loot", AutomationSystem.TaskType.SELL_EXCESS_LOOT],
+		["Interact / buy pulse", AutomationSystem.TaskType.INTERACT],
 	]:
 		_opt_automation_task.add_item(pair[0] as String)
 		_opt_automation_task.set_item_metadata(_opt_automation_task.item_count - 1, pair[1] as int)
@@ -2883,6 +3066,39 @@ func _ensure_automation_tab_controls() -> void:
 		_opt_automation_task.select(0)
 	row_pick.add_child(_opt_automation_task)
 	v.add_child(row_pick)
+	var row_preset := HBoxContainer.new()
+	row_preset.add_theme_constant_override("separation", 8)
+	var lbl_preset := Label.new()
+	lbl_preset.text = "Templates:"
+	row_preset.add_child(lbl_preset)
+	_opt_automation_preset = OptionButton.new()
+	_opt_automation_preset.custom_minimum_size = Vector2(260, 0)
+	_opt_automation_preset.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for row in (
+		[
+			["— choose template —", 0],
+			["Melee: simulated hunt grind", 1],
+			["Follow backbone", 2],
+			["Follow + reactive support thresholds", 3],
+			["Vendor sell (merchant pipeline)", 4],
+			["Complete tracked quest", 5],
+			["Find scrap sample in bag", 6],
+		]
+	):
+		var title: String = row[0] as String
+		var preset_meta: int = int(row[1])
+		_opt_automation_preset.add_item(title)
+		_opt_automation_preset.set_item_metadata(_opt_automation_preset.item_count - 1, preset_meta)
+	if _option_popup_theme != null:
+		_opt_automation_preset.get_popup().theme = _option_popup_theme
+	elif theme != null:
+		_opt_automation_preset.get_popup().theme = _build_option_popup_theme(theme as Theme)
+	_wire_option_button_popup(_opt_automation_preset)
+	_btn_automation_preset_apply = Button.new()
+	_btn_automation_preset_apply.text = "Apply template"
+	row_preset.add_child(_opt_automation_preset)
+	row_preset.add_child(_btn_automation_preset_apply)
+	v.add_child(row_preset)
 	var row_actions := HBoxContainer.new()
 	row_actions.add_theme_constant_override("separation", 8)
 	var btn_add := Button.new()
@@ -2917,12 +3133,24 @@ func _ensure_automation_tab_controls() -> void:
 	_automation_follow_block.add_child(opt_follow)
 	v.add_child(_automation_follow_block)
 	margin.add_child(v)
-	_d_automation_host.add_child(margin)
+	var automation_scroll := ScrollContainer.new()
+	automation_scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	automation_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	automation_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	automation_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	automation_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	automation_scroll.add_child(margin)
+	_d_automation_host.add_child(automation_scroll)
+	if prev_scroll > 0:
+		automation_scroll.scroll_vertical = prev_scroll
 	if _opt_automation_task != null:
 		_opt_automation_task.item_selected.connect(_on_automation_task_selected)
+	if _btn_automation_preset_apply != null:
+		_btn_automation_preset_apply.pressed.connect(_on_automation_apply_preset_pressed)
 	_refresh_follow_target_options()
 	_refresh_automation_follow_visibility()
 	_refresh_automation_context_label()
+	_sync_automation_preemption_checkbox()
 	if _automation != null:
 		_automation.set_dispatch_held(_current_runner_id, _chk_automation_queue_hold.button_pressed)
 
@@ -3027,6 +3255,30 @@ func _on_automation_add_to_queue() -> void:
 			t.priority = 3
 			t.label = "assist:%s" % String(ally)
 			t.data["ally_character_id"] = ally
+		AutomationSystem.TaskType.COMPLETE_QUEST:
+			var qid_cq: StringName = _first_active_quest_id_or_default()
+			t.priority = 2
+			t.label = "quest:%s" % String(qid_cq)
+			t.data["quest_id"] = String(qid_cq)
+			t.data["use_external_completion"] = true
+		AutomationSystem.TaskType.SEARCH_LOOT:
+			t.priority = 2
+			t.label = "loot:scrap_probe"
+			t.data["loot_filter"] = {"item_id": StringName(&"scrap")}
+			t.data["use_external_completion"] = true
+		AutomationSystem.TaskType.SELL_EXCESS_LOOT:
+			t.priority = 4
+			t.label = "sell_vendor"
+			t.data["merchant_id"] = "default_merchant"
+			t.data["merchant_pipeline"] = true
+			t.data["use_external_completion"] = true
+		AutomationSystem.TaskType.INTERACT:
+			t.priority = 4
+			t.label = "buy:scrap"
+			t.data["merchant_id"] = "default_merchant"
+			t.data["merchant_buy_item_id"] = "scrap"
+			t.data["merchant_buy_qty"] = 1
+			t.data["use_external_completion"] = true
 		_:
 			t.data["sim_ticks"] = 2
 	_automation.enqueue_for(_current_runner_id, t)
@@ -3450,6 +3702,125 @@ func _on_automation_queue_continuous_toggled(pressed: bool, task_id: int) -> voi
 	_automation.set_queue_task_continuous(_current_runner_id, task_id, pressed)
 
 
+func _on_automation_queue_preemption_toggled(pressed: bool) -> void:
+	if _automation == null:
+		return
+	_automation.queue_preempts_lower_priority_active = pressed
+
+
+func _on_automation_queue_priority_changed(value: float, task_id: int) -> void:
+	if _automation == null:
+		return
+	_automation.set_task_priority_by_task_id(_current_runner_id, task_id, int(round(value)))
+
+
+func _on_automation_queue_interruptible_toggled(pressed: bool, task_id: int) -> void:
+	if _automation == null:
+		return
+	_automation.set_task_interruptible_by_task_id(_current_runner_id, task_id, pressed)
+
+
+func _on_automation_apply_preset_pressed() -> void:
+	if _automation == null or _opt_automation_preset == null:
+		return
+	var idx := clampi(_opt_automation_preset.selected, 0, _opt_automation_preset.item_count - 1)
+	var preset_id: int = int(_opt_automation_preset.get_item_metadata(idx))
+	if preset_id < 1:
+		_append_command_feed("[ui] Choose a template row other than the placeholder.", _automation_ui_log_character_id())
+		return
+	_automation.clear_queue(_current_runner_id)
+	match preset_id:
+		1:
+			var h := AutomationSystem.AutomationTask.new()
+			h.type = AutomationSystem.TaskType.HUNT
+			h.priority = 5
+			h.continuous = true
+			h.interruptible = true
+			h.label = "preset:sim_hunt"
+			h.data["sim_only"] = true
+			h.data["sim_ticks"] = 2
+			_automation.enqueue_for(_current_runner_id, h)
+			_append_command_feed("[ui] Preset: simulated hunt grind queued.", _automation_ui_log_character_id())
+		2:
+			var ptid: StringName = _resolve_follow_target_for_task()
+			if ptid == &"":
+				_append_command_feed(
+					"[ui] Follow preset needs a follow target — pick a roster ally or select B.b elsewhere.",
+					_automation_ui_log_character_id(),
+				)
+				return
+			var f := AutomationSystem.AutomationTask.new()
+			f.type = AutomationSystem.TaskType.FOLLOW_CHARACTER
+			f.priority = 3
+			f.interruptible = true
+			f.label = "preset:follow:%s" % String(ptid)
+			f.data["target_character_id"] = ptid
+			_automation.enqueue_for(_current_runner_id, f)
+			_append_command_feed("[ui] Preset: follow backbone queued.", _automation_ui_log_character_id())
+		3:
+			var self_c: StringName = _drafting_automation_character_id()
+			var ally: StringName = _resolve_assist_ally_for_task()
+			var follow_id: StringName = _resolve_follow_target_for_task()
+			if self_c == &"" or ally == &"":
+				_append_command_feed(
+					"[ui] Reactive support preset needs this runner mapped to a logged-in character and an ally picked (B.b).",
+					_automation_ui_log_character_id(),
+				)
+				return
+			if follow_id == &"":
+				follow_id = ally
+			var rp := AutomationSupportProfile.new()
+			rp.supporter_character_id = self_c
+			rp.ally_character_ids = PackedStringArray([ally])
+			_support_profiles_runtime.append(rp)
+			var f2 := AutomationSystem.AutomationTask.new()
+			f2.type = AutomationSystem.TaskType.FOLLOW_CHARACTER
+			f2.priority = 3
+			f2.interruptible = true
+			f2.label = "preset:follow+rprof:%s" % String(ally)
+			f2.data["target_character_id"] = follow_id
+			_automation.enqueue_for(_current_runner_id, f2)
+			_append_command_feed(
+				"[ui] Preset: follow backbone + vitality monitor queued (ally %s)." % String(ally),
+				_automation_ui_log_character_id(),
+			)
+		4:
+			var s := AutomationSystem.AutomationTask.new()
+			s.type = AutomationSystem.TaskType.SELL_EXCESS_LOOT
+			s.priority = 4
+			s.interruptible = true
+			s.label = "preset:vendor_sell"
+			s.data["merchant_id"] = "default_merchant"
+			s.data["merchant_pipeline"] = true
+			s.data["use_external_completion"] = true
+			_automation.enqueue_for(_current_runner_id, s)
+			_append_command_feed("[ui] Preset: vendor sell pipeline queued.", _automation_ui_log_character_id())
+		5:
+			var cqid := _first_active_quest_id_or_default()
+			var cq := AutomationSystem.AutomationTask.new()
+			cq.type = AutomationSystem.TaskType.COMPLETE_QUEST
+			cq.priority = 2
+			cq.interruptible = true
+			cq.label = "preset:quest:%s" % String(cqid)
+			cq.data["quest_id"] = String(cqid)
+			cq.data["use_external_completion"] = true
+			_automation.enqueue_for(_current_runner_id, cq)
+			_append_command_feed("[ui] Preset: tracked quest watcher queued (%s)." % String(cqid), _automation_ui_log_character_id())
+		6:
+			var sl := AutomationSystem.AutomationTask.new()
+			sl.type = AutomationSystem.TaskType.SEARCH_LOOT
+			sl.priority = 2
+			sl.interruptible = true
+			sl.label = "preset:loot_scrap"
+			sl.data["loot_filter"] = {"item_id": StringName(&"scrap")}
+			sl.data["use_external_completion"] = true
+			_automation.enqueue_for(_current_runner_id, sl)
+			_append_command_feed("[ui] Preset: scrap loot probe queued.", _automation_ui_log_character_id())
+		_:
+			pass
+	_refresh_automation_panel()
+
+
 func _on_automation_interrupt_pressed() -> void:
 	if _automation == null:
 		return
@@ -3485,9 +3856,10 @@ func _refresh_automation_panel() -> void:
 	var active: Variant = _automation.get_active_task_for(_current_runner_id)
 	if active != null and active is AutomationSystem.AutomationTask:
 		var at: AutomationSystem.AutomationTask = active as AutomationSystem.AutomationTask
-		_automation_active.text = "[b]%s[/b]  prio=%d  id=%d\n[i]%s[/i]" % [
+		_automation_active.text = "[b]%s[/b]  prio=%d  int=%s  id=%d\n[i]%s[/i]" % [
 			_automation_task_name(at.type),
 			at.priority,
+			"y" if at.interruptible else "n",
 			at.task_id,
 			at.label,
 		]
@@ -3511,6 +3883,28 @@ func _refresh_automation_panel() -> void:
 			row.row_index = qi
 			row.add_theme_constant_override("separation", 6)
 			row.custom_minimum_size.y = 28
+			var prio_box := SpinBox.new()
+			prio_box.custom_minimum_size = Vector2(74, 0)
+			prio_box.min_value = -32
+			prio_box.max_value = 64
+			prio_box.step = 1
+			prio_box.rounded = true
+			prio_box.allow_lesser = true
+			prio_box.allow_greater = true
+			prio_box.set_block_signals(true)
+			prio_box.value = float(qt.priority)
+			prio_box.set_block_signals(false)
+			var tid_prio: int = qt.task_id
+			prio_box.value_changed.connect(_on_automation_queue_priority_changed.bind(tid_prio))
+			var chk_int := CheckBox.new()
+			chk_int.text = "Int"
+			chk_int.tooltip_text = "Interruptible (eligible for preempt / reactive interrupts)."
+			chk_int.focus_mode = Control.FOCUS_NONE
+			chk_int.set_block_signals(true)
+			chk_int.button_pressed = qt.interruptible
+			chk_int.set_block_signals(false)
+			var tid_intr: int = qt.task_id
+			chk_int.toggled.connect(_on_automation_queue_interruptible_toggled.bind(tid_intr))
 			var chk_loop := CheckBox.new()
 			chk_loop.text = "Loop"
 			chk_loop.tooltip_text = "When checked, this task is queued again after it completes successfully."
@@ -3523,9 +3917,11 @@ func _refresh_automation_panel() -> void:
 			var lbl_q := Label.new()
 			lbl_q.set_script(_AutomationQueueTaskLabelScr)
 			lbl_q.row_index = qi
-			lbl_q.text = "%2d  %s  %s" % [qt.priority, _automation_task_name(qt.type), qt.label]
+			lbl_q.text = "%s  %s" % [_automation_task_name(qt.type), qt.label]
 			lbl_q.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			lbl_q.mouse_default_cursor_shape = Control.CURSOR_MOVE
+			row.add_child(prio_box)
+			row.add_child(chk_int)
 			row.add_child(chk_loop)
 			row.add_child(lbl_q)
 			_automation_queue_host.add_child(row)

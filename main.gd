@@ -129,3 +129,7 @@ func _wire_systems_to_ui() -> void:
 	if _shell.has_method("bind_combat_system"):
 		var combat: CombatSystem = _systems.get_node("CombatSystem") as CombatSystem
 		_shell.bind_combat_system(combat)
+
+	var merchant_bind: MerchantSystem = _systems.get_node("MerchantSystem") as MerchantSystem
+	if merchant_bind != null and _shell.has_method("bind_merchant_system"):
+		_shell.bind_merchant_system(merchant_bind)

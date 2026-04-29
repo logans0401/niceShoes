@@ -73,6 +73,8 @@ var _registry: Node = null
 var _group_system: Node = null
 ## When true for a runner, queued tasks are not promoted to active (build a queue, then call set_dispatch_held(id, false)).
 var _dispatch_held: Dictionary = {}
+## When true, each tick may suspend an interruptible active task if the sorted queue head has higher priority (queue vs active).
+@export var queue_preempts_lower_priority_active: bool = false
 
 
 func configure(registry: Node = null, group_system: Node = null) -> void:
@@ -128,9 +130,19 @@ func enqueue_for(runner_id: StringName, task: AutomationTask) -> void:
 
 
 func enqueue_interruptible_high_priority(runner_id: StringName, task: AutomationTask) -> void:
-	## Optional helper: interrupt current work if allowed, then run this task next.
-	if interrupt_active(runner_id):
-		pass
+	## Suspend interruptible active work if present, bump priority above active/queue ceiling, enqueue, then resume backbone after this task finishes.
+	ensure_runner(runner_id)
+	var st: _QueueState = _runners[runner_id]
+	var ceiling: int = 0
+	for qt in st.queue:
+		var qtt: AutomationTask = qt as AutomationTask
+		ceiling = maxi(ceiling, qtt.priority)
+	if st.active != null:
+		ceiling = maxi(ceiling, st.active.priority)
+	task.priority = ceiling + 1
+	var did_interrupt: bool = interrupt_active(runner_id)
+	if did_interrupt:
+		task.data["resume_backbone_after"] = true
 	enqueue_for(runner_id, task)
 
 
@@ -235,6 +247,31 @@ func set_task_priority(runner_id: StringName, queue_index: int, new_priority: in
 	_emit_queue_changed(runner_id)
 
 
+func set_task_priority_by_task_id(runner_id: StringName, task_id: int, new_priority: int) -> void:
+	if not _runners.has(runner_id):
+		return
+	var st: _QueueState = _runners[runner_id]
+	for t in st.queue:
+		var at: AutomationTask = t as AutomationTask
+		if at.task_id == task_id:
+			at.priority = new_priority
+			_sort_queue(st)
+			_emit_queue_changed(runner_id)
+			return
+
+
+func set_task_interruptible_by_task_id(runner_id: StringName, task_id: int, interruptible: bool) -> void:
+	if not _runners.has(runner_id):
+		return
+	var st: _QueueState = _runners[runner_id]
+	for t in st.queue:
+		var at: AutomationTask = t as AutomationTask
+		if at.task_id == task_id:
+			at.interruptible = interruptible
+			_emit_queue_changed(runner_id)
+			return
+
+
 func interrupt_active(runner_id: StringName) -> bool:
 	if not _runners.has(runner_id):
 		return false
@@ -318,15 +355,41 @@ func _push_previous(st: _QueueState, task: AutomationTask, success: bool) -> voi
 func _tick_runner(runner_id: StringName, delta: float) -> void:
 	var st: _QueueState = _runners[runner_id]
 	if st.active == null and not st.queue.is_empty() and not is_dispatch_held(runner_id):
+		_sort_queue(st)
 		st.active = st.queue.pop_front() as AutomationTask
 		task_started.emit(runner_id, st.active)
 		_log(st, "Started: %s (p=%d)" % [st.active.label, st.active.priority])
 		_emit_queue_changed(runner_id)
+	_try_queue_preempt_active(runner_id, st)
 	if st.active == null:
 		return
 	var done := _advance_task(st, st.active, delta)
 	if done:
 		_finish_active(runner_id, st, true)
+
+
+func _try_queue_preempt_active(runner_id: StringName, st: _QueueState) -> void:
+	if not queue_preempts_lower_priority_active:
+		return
+	if is_dispatch_held(runner_id):
+		return
+	if st.active == null or st.queue.is_empty():
+		return
+	_sort_queue(st)
+	var head: AutomationTask = st.queue[0] as AutomationTask
+	var cur: AutomationTask = st.active
+	if head.priority <= cur.priority:
+		return
+	if not cur.interruptible:
+		_log(st, "Preempt blocked (active not interruptible): %s" % cur.label)
+		return
+	st.suspended.append(cur)
+	task_interrupted.emit(runner_id, cur)
+	_log(st, "Preempted (queue higher priority): %s" % cur.label)
+	st.active = st.queue.pop_front() as AutomationTask
+	task_started.emit(runner_id, st.active)
+	_log(st, "Started: %s (p=%d)" % [st.active.label, st.active.priority])
+	_emit_queue_changed(runner_id)
 
 
 func _finish_active(runner_id: StringName, st: _QueueState, success: bool) -> void:
@@ -342,6 +405,19 @@ func _finish_active(runner_id: StringName, st: _QueueState, success: bool) -> vo
 		st.queue.append(again)
 		_sort_queue(st)
 		_log(st, "Continuous: re-queued %s" % again.label)
+	var resume_backbone: bool = bool(finished.data.get("resume_backbone_after", false))
+	if resume_backbone and success and not st.suspended.is_empty():
+		finished.data.erase("resume_backbone_after")
+		if resume_suspended(runner_id):
+			_log(st, "Resumed backbone after reactive task: %s" % finished.label)
+	if (
+		success
+		and st.active == null
+		and st.queue.is_empty()
+		and not st.suspended.is_empty()
+		and not is_dispatch_held(runner_id)
+	):
+		resume_suspended(runner_id)
 	_emit_queue_changed(runner_id)
 
 
@@ -366,6 +442,8 @@ func _scrub_task_runtime_state(t: AutomationTask) -> void:
 		"assist_last_strike_ms",
 		"assist_lock_instance_id",
 		"follow_caught_up",
+		"resume_backbone_after",
+		"external_done",
 	]
 	for k in wipe:
 		t.data.erase(k)
@@ -471,6 +549,14 @@ func _advance_task(st: _QueueState, task: AutomationTask, _delta: float) -> bool
 				_log(st, "Selling excess (merchant=%s)" % str(task.data.get("merchant_id", "default")))
 		_:
 			pass
+
+	## Shell sets `external_done` when quest completes, loot matches, merchants trade, etc.
+	if bool(task.data.get("use_external_completion", false)):
+		match task.type:
+			TaskType.COMPLETE_QUEST, TaskType.SEARCH_LOOT, TaskType.SELL_EXCESS_LOOT, TaskType.INTERACT:
+				return bool(task.data.get("external_done", false))
+			_:
+				pass
 
 	var need: int = _default_sim_ticks(task)
 	var cur: int = int(task.data.get("_sim_step", 0))

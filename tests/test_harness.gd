@@ -53,6 +53,12 @@ func _run_all() -> int:
 	if not _test_automation_interrupt_resume():
 		push_error("test_harness: automation interrupt/resume failed")
 		return 1
+	if not _test_automation_queue_preemption_resume():
+		push_error("test_harness: automation queue preemption failed")
+		return 1
+	if not _test_automation_enqueue_interruptible_high_priority_resume():
+		push_error("test_harness: automation interruptible high priority failed")
+		return 1
 	if not _test_automation_four_character_simulation():
 		push_error("test_harness: automation four-character sim failed")
 		return 1
@@ -260,6 +266,81 @@ func _test_automation_interrupt_resume() -> bool:
 		return false
 	var prev: Array = auto.get_previous_tasks_for(rid)
 	var ok: bool = not prev.is_empty() and str((prev[prev.size() - 1] as Dictionary).get("label")) == "long_wait"
+	_free_node(auto)
+	return ok
+
+
+func _test_automation_queue_preemption_resume() -> bool:
+	var auto = AutomationSystemScr.new()
+	auto.queue_preempts_lower_priority_active = true
+	var rid := &"preempt_u"
+	var wait = AutomationSystemScr.AutomationTask.new()
+	wait.type = AutomationSystemScr.TaskType.WAIT
+	wait.priority = 1
+	wait.interruptible = true
+	wait.data["sim_ticks"] = 99
+	wait.label = "long_wait"
+	var hunt = AutomationSystemScr.AutomationTask.new()
+	hunt.type = AutomationSystemScr.TaskType.HUNT
+	hunt.priority = 10
+	hunt.interruptible = true
+	hunt.data["sim_only"] = true
+	hunt.data["sim_ticks"] = 1
+	hunt.label = "hunt_prio"
+	auto.enqueue_for(rid, wait)
+	auto.tick_all(0.01)
+	if auto.get_active_task_for(rid) == null:
+		_free_node(auto)
+		return false
+	auto.enqueue_for(rid, hunt)
+	auto.tick_all(0.01)
+	var a2: Variant = auto.get_active_task_for(rid)
+	if a2 == null or not a2 is AutomationSystemScr.AutomationTask:
+		_free_node(auto)
+		return false
+	var at2: AutomationSystemScr.AutomationTask = a2 as AutomationSystemScr.AutomationTask
+	if at2.type != AutomationSystemScr.TaskType.HUNT:
+		_free_node(auto)
+		return false
+	for _i in range(64):
+		auto.tick_all(0.01)
+	var a3: Variant = auto.get_active_task_for(rid)
+	if a3 == null or not a3 is AutomationSystemScr.AutomationTask:
+		_free_node(auto)
+		return false
+	var at3: AutomationSystemScr.AutomationTask = a3 as AutomationSystemScr.AutomationTask
+	var ok2: bool = at3.type == AutomationSystemScr.TaskType.WAIT
+	_free_node(auto)
+	return ok2
+
+
+func _test_automation_enqueue_interruptible_high_priority_resume() -> bool:
+	var auto = AutomationSystemScr.new()
+	var rid := &"ehq_u"
+	var f = AutomationSystemScr.AutomationTask.new()
+	f.type = AutomationSystemScr.TaskType.FOLLOW_CHARACTER
+	f.interruptible = true
+	f.label = "follow"
+	var sup = AutomationSystemScr.AutomationTask.new()
+	sup.type = AutomationSystemScr.TaskType.SUPPORT_ALLY
+	sup.interruptible = true
+	sup.label = "burst"
+	sup.data["ally_id"] = "ally"
+	sup.data["sim_ticks"] = 1
+	auto.enqueue_for(rid, f)
+	auto.tick_all(0.01)
+	if auto.get_active_task_for(rid) == null:
+		_free_node(auto)
+		return false
+	auto.enqueue_interruptible_high_priority(rid, sup)
+	for _j in range(80):
+		auto.tick_all(0.01)
+	var a: Variant = auto.get_active_task_for(rid)
+	if a == null or not a is AutomationSystemScr.AutomationTask:
+		_free_node(auto)
+		return false
+	var at: AutomationSystemScr.AutomationTask = a as AutomationSystemScr.AutomationTask
+	var ok: bool = at.type == AutomationSystemScr.TaskType.FOLLOW_CHARACTER
 	_free_node(auto)
 	return ok
 
