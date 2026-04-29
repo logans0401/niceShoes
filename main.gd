@@ -20,6 +20,7 @@ func _bootstrap_systems() -> void:
 	var skills: SkillSystem = _systems.get_node("SkillSystem") as SkillSystem
 	var stats: StatsSystem = _systems.get_node("StatsSystem") as StatsSystem
 	var catalog: ItemCatalog = _systems.get_node("ItemCatalog") as ItemCatalog
+	var item_instances: Node = _systems.get_node("ItemInstanceSystem")
 	var inventory: InventorySystem = _systems.get_node("InventorySystem") as InventorySystem
 	var equipment: EquipmentSystem = _systems.get_node("EquipmentSystem") as EquipmentSystem
 	var trade: TradeSystem = _systems.get_node("TradeSystem") as TradeSystem
@@ -27,23 +28,28 @@ func _bootstrap_systems() -> void:
 	var ground: GroundItemsSystem = _systems.get_node("GroundItemsSystem") as GroundItemsSystem
 	var corpse: CorpseLootSystem = _systems.get_node("CorpseLootSystem") as CorpseLootSystem
 	var loot: LootSystem = _systems.get_node("LootSystem") as LootSystem
+	var combat_balance: Resource = load("res://data/default_combat_balance.tres") as Resource
 
 	registry.configure(balance)
-	progression.configure(registry, balance)
+	progression.configure(registry, balance, combat_balance)
 	group.configure(registry)
 	skills.configure(registry)
 	stats.configure(balance)
 	stats.configure_inventory_penalties(inv_balance)
+	stats.configure_combat_balance(combat_balance)
 
-	inventory.configure(catalog, registry, inv_balance)
-	equipment.configure(inventory, catalog)
+	item_instances.configure(catalog)
+	inventory.configure(catalog, registry, inv_balance, item_instances)
+	equipment.configure(inventory, catalog, item_instances)
 	inventory.attach_equipment(equipment)
 
 	trade.configure(inventory, inv_balance)
-	merchant.configure(catalog, inventory, registry)
+	merchant.configure(catalog, inventory, registry, item_instances)
 	ground.configure(catalog, inventory, inv_balance)
 	corpse.configure(inventory, trade, inv_balance)
-	loot.configure(ground, corpse, inventory)
+	loot.configure(ground, corpse, inventory, item_instances, combat_balance)
+	var combat: CombatSystem = _systems.get_node("CombatSystem") as CombatSystem
+	combat.configure(combat_balance)
 
 	inventory.inventory_changed.connect(stats.invalidate)
 	equipment.equipment_changed.connect(stats.invalidate)
@@ -110,6 +116,9 @@ func _wire_systems_to_ui() -> void:
 	var equipment: EquipmentSystem = _systems.get_node("EquipmentSystem") as EquipmentSystem
 	var catalog: ItemCatalog = _systems.get_node("ItemCatalog") as ItemCatalog
 	var stats: StatsSystem = _systems.get_node("StatsSystem") as StatsSystem
+	var item_instances: Node = _systems.get_node("ItemInstanceSystem")
+	var corpse: CorpseLootSystem = _systems.get_node("CorpseLootSystem") as CorpseLootSystem
+	var loot: LootSystem = _systems.get_node("LootSystem") as LootSystem
 
 	if _shell.has_method("bind_progression_system"):
 		_shell.bind_progression_system(progression, balance)
@@ -125,7 +134,7 @@ func _wire_systems_to_ui() -> void:
 		var focus: StringName = &""
 		if ids.size() > 0:
 			focus = ids[0]
-		_shell.bind_inventory_ui(registry, inventory, equipment, catalog, stats, balance, inv_balance, focus)
+		_shell.bind_inventory_ui(registry, inventory, equipment, catalog, stats, balance, inv_balance, focus, item_instances)
 	if _shell.has_method("bind_combat_system"):
 		var combat: CombatSystem = _systems.get_node("CombatSystem") as CombatSystem
 		_shell.bind_combat_system(combat)
@@ -133,3 +142,5 @@ func _wire_systems_to_ui() -> void:
 	var merchant_bind: MerchantSystem = _systems.get_node("MerchantSystem") as MerchantSystem
 	if merchant_bind != null and _shell.has_method("bind_merchant_system"):
 		_shell.bind_merchant_system(merchant_bind)
+	if _shell.has_method("bind_loot_systems"):
+		_shell.bind_loot_systems(loot, corpse)

@@ -3,6 +3,10 @@ extends Resource
 
 @export var item_id: String = ""
 @export var display_name: String = ""
+@export var category: String = ""
+@export var item_type: String = ""
+@export var loot_tier_min: int = 1
+@export var loot_tier_max: int = 20
 @export var weight: float = 1.0
 @export var max_stack: int = 99
 ## Empty string if not equippable; otherwise must match EquipmentSchema slot id.
@@ -18,3 +22,9 @@ extends Resource
 @export var scroll_teaches_spell: String = ""
 @export var buy_price: int = 10
 @export var sell_price: int = 3
+@export var armor_level: float = 0.0
+## DamageTypes.Id int -> 0..10 mitigation rating.
+@export var armor_ratings: Dictionary = {}
+## Example: {"skill": "melee_combat", "rank": 7}
+@export var requirements: Dictionary = {}
+@export var modifiers: Dictionary = {}

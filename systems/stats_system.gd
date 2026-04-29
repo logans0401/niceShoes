@@ -4,6 +4,7 @@ extends Node
 const _Sch := preload("res://scripts/character_schema.gd")
 const _BalanceScr := preload("res://data/character_balance_config.gd")
 const _InvBalScr := preload("res://data/inventory_balance_config.gd")
+const _CombatBalanceScr := preload("res://data/combat_balance_config.gd")
 
 signal stats_recomputed(character_id: StringName)
 
@@ -12,6 +13,7 @@ signal stats_recomputed(character_id: StringName)
 
 ## character_id -> Dictionary of computed stats
 var _cache: Dictionary = {}
+var _combat_balance: Resource = null
 
 
 func configure(config: Resource) -> void:
@@ -20,6 +22,15 @@ func configure(config: Resource) -> void:
 
 func configure_inventory_penalties(inv_balance: Resource) -> void:
 	inventory_balance = inv_balance
+
+
+func configure_combat_balance(combat_balance: Resource) -> void:
+	_combat_balance = combat_balance
+	invalidate_all()
+
+
+func invalidate_all() -> void:
+	_cache.clear()
 
 
 func _ready() -> void:
@@ -33,7 +44,7 @@ func get_effective_stats(character_id: StringName, data: Resource, equipment: No
 	var key: StringName = character_id
 	if _cache.has(key):
 		return _cache[key] as Dictionary
-	var computed: Dictionary = _compute(data, equipment.get_loadout(character_id))
+	var computed: Dictionary = _compute(data, equipment, character_id)
 	_cache[key] = computed
 	return computed
 
@@ -43,7 +54,7 @@ func invalidate(character_id: StringName) -> void:
 	stats_recomputed.emit(character_id)
 
 
-func _compute(data: Resource, _loadout: Dictionary) -> Dictionary:
+func _compute(data: Resource, equipment: Node, character_id: StringName) -> Dictionary:
 	var cfg: Resource = balance
 	if cfg == null:
 		cfg = _BalanceScr.new()
@@ -64,6 +75,22 @@ func _compute(data: Resource, _loadout: Dictionary) -> Dictionary:
 	var reflex: float = float(attrs.get(_Sch.ATTRIBUTE_REFLEXES, pivot_f))
 	var mind: float = float(attrs.get(_Sch.ATTRIBUTE_MIND, pivot_f))
 	var wisdom: float = float(attrs.get(_Sch.ATTRIBUTE_WISDOM, pivot_f))
+	var death_penalty: float = clampf(float(data.meta.get("death_penalty_percent", 0.0)), 0.0, 0.35)
+	var penalty_mult: float = maxf(0.0, 1.0 - death_penalty)
+
+	strn *= penalty_mult
+	heart *= penalty_mult
+	ability *= penalty_mult
+	reflex *= penalty_mult
+	mind *= penalty_mult
+	wisdom *= penalty_mult
+	var penalized_attrs: Dictionary = attrs.duplicate(true)
+	penalized_attrs[_Sch.ATTRIBUTE_STRENGTH] = strn
+	penalized_attrs[_Sch.ATTRIBUTE_HEARTINESS] = heart
+	penalized_attrs[_Sch.ATTRIBUTE_ABILITY] = ability
+	penalized_attrs[_Sch.ATTRIBUTE_REFLEXES] = reflex
+	penalized_attrs[_Sch.ATTRIBUTE_MIND] = mind
+	penalized_attrs[_Sch.ATTRIBUTE_WISDOM] = wisdom
 
 	var strn_e: float = maxf(0.0, strn - pivot_f)
 	var heart_e: float = maxf(0.0, heart - pivot_f)
@@ -73,9 +100,9 @@ func _compute(data: Resource, _loadout: Dictionary) -> Dictionary:
 	var wisdom_e: float = maxf(0.0, wisdom - pivot_f)
 
 	## Skill modifiers use stretched attributes so Z=100 creation does not explode combat math.
-	var attrs_for_skills: Dictionary = attrs
+	var attrs_for_skills: Dictionary = penalized_attrs
 	if cfg is CharacterBalanceConfig:
-		attrs_for_skills = (cfg as CharacterBalanceConfig).attributes_for_skill_formulas(attrs)
+		attrs_for_skills = (cfg as CharacterBalanceConfig).attributes_for_skill_formulas(penalized_attrs)
 
 	## Skill modifiers = (weighted attributes / skill_base_divisor) + (rank × skill_rank_modifier_scale); see CharacterBalanceConfig.
 	## Ranks include bought XP ranks plus transient_skill_bonus (buffs), matching combat/display intent.
@@ -93,6 +120,12 @@ func _compute(data: Resource, _loadout: Dictionary) -> Dictionary:
 	var melee_def_mod: float = float(mods.get(_Sch.SKILL_MELEE_DEFENSE, 0.0))
 	var magic_def_mod: float = float(mods.get(_Sch.SKILL_MAGIC_DEFENSE, 0.0))
 	var missile_def_mod: float = float(mods.get(_Sch.SKILL_MISSILE_DEFENSE, 0.0))
+	var equip_effects: Dictionary = _equipment_effects(equipment, character_id)
+	melee_mod *= float(equip_effects.get("melee_combat_multiplier", 1.0))
+	missile_mod *= float(equip_effects.get("missile_combat_multiplier", 1.0))
+	melee_def_mod *= float(equip_effects.get("melee_defense_multiplier", 1.0))
+	magic_def_mod *= float(equip_effects.get("magic_defense_multiplier", 1.0))
+	missile_def_mod *= float(equip_effects.get("missile_defense_multiplier", 1.0))
 
 	var burden_capacity: float = cfg.get_burden_capacity(attrs)
 	var burden_ratio: float = inv_cfg.get_burden_ratio(float(data.laden_burden), burden_capacity)
@@ -161,8 +194,71 @@ func _compute(data: Resource, _loadout: Dictionary) -> Dictionary:
 		"defense_skill_multiplier": float(pen.get("defense_skill_multiplier", 1.0)),
 		"health_regen_multiplier": float(pen.get("health_regen_multiplier", 1.0)),
 		"stamina_regen_multiplier": float(pen.get("stamina_regen_multiplier", 1.0)),
+		"death_penalty_percent": death_penalty,
+		"melee_attack_interval_sec": _melee_attack_interval(reflex, ability, equip_effects, pen),
+		"armor_by_area": equip_effects.get("armor_by_area", {}),
+		"arcane_conversion_multiplier": float(equip_effects.get("arcane_conversion_multiplier", 1.0)),
+		"spell_extra_damage_percent": float(equip_effects.get("spell_extra_damage_percent", 0.0)),
+		"effective_attributes": penalized_attrs,
 	}
 	return out
+
+
+func _melee_attack_interval(reflex: float, ability: float, equip_effects: Dictionary, burden_penalty: Dictionary) -> float:
+	if _combat_balance == null:
+		_combat_balance = load("res://data/default_combat_balance.tres") as Resource
+	var base: float = _combat_balance.unarmed_attack_interval_sec
+	var stat_factor: float = maxf(0.35, 1.0 - maxf(0.0, reflex - 10.0) * 0.012 - maxf(0.0, ability - 10.0) * 0.006)
+	var equip_bonus: float = float(equip_effects.get("attack_speed_bonus", 0.0))
+	var burden_mult: float = float(burden_penalty.get("attack_speed_multiplier", 1.0))
+	return maxf(0.5, base * stat_factor * burden_mult / maxf(0.2, 1.0 + equip_bonus))
+
+
+func _equipment_effects(equipment: Node, character_id: StringName) -> Dictionary:
+	var effects: Dictionary = {"armor_by_area": {}}
+	if equipment == null:
+		return effects
+	if not equipment.has_method("get_equipped_details"):
+		return effects
+	for slot in equipment.get_loadout(character_id).keys():
+		var details: Dictionary = equipment.call("get_equipped_details", character_id, StringName(slot)) as Dictionary
+		if details.is_empty():
+			continue
+		var mods: Dictionary = details.get("modifiers", {}) as Dictionary
+		for mk in mods.keys():
+			var key: String = str(mk)
+			var val: float = float(mods[mk])
+			if key.ends_with("_multiplier"):
+				effects[key] = float(effects.get(key, 1.0)) * val
+			else:
+				effects[key] = float(effects.get(key, 0.0)) + val
+		var area: StringName = _slot_to_body_area(StringName(slot))
+		if area != &"":
+			(effects["armor_by_area"] as Dictionary)[area] = {
+				"armor_level": float(details.get("armor_level", 0.0)),
+				"damage_ratings": (details.get("armor_ratings", {}) as Dictionary).duplicate(true),
+			}
+	return effects
+
+
+func _slot_to_body_area(slot: StringName) -> StringName:
+	match String(slot):
+		"head":
+			return _CombatBalanceScr.AREA_HEAD
+		"shoulders":
+			return _CombatBalanceScr.AREA_SHOULDERS
+		"chest":
+			return _CombatBalanceScr.AREA_CHEST
+		"waist":
+			return _CombatBalanceScr.AREA_WAIST
+		"legs":
+			return _CombatBalanceScr.AREA_LEGS
+		"feet":
+			return _CombatBalanceScr.AREA_FEET
+		"hands":
+			return _CombatBalanceScr.AREA_HANDS
+		_:
+			return &""
 
 
 func _merged_skill_ranks_for_modifiers(data: Resource) -> Dictionary:

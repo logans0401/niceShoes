@@ -4,15 +4,17 @@ extends Node
 var _catalog: Node
 var _inventory: Node
 var _registry: Node
+var _item_instances: Node = null
 
 ## merchant_id -> Array of { "item_id": String, "quantity": int }
 var _stock: Dictionary = {}
 
 
-func configure(catalog: Node, inventory: Node, registry: Node) -> void:
+func configure(catalog: Node, inventory: Node, registry: Node, item_instances: Node = null) -> void:
 	_catalog = catalog
 	_inventory = inventory
 	_registry = registry
+	_item_instances = item_instances
 
 
 func set_merchant_stock(merchant_id: StringName, offers: Array) -> void:
@@ -55,7 +57,7 @@ func sell_from_bag(seller_id: StringName, merchant_id: StringName, bag_index: in
 	if cell == null:
 		return ERR_DOES_NOT_EXIST
 	var c: Dictionary = cell as Dictionary
-	var item_id: StringName = c.get("item_id", &"") as StringName
+	var item_id: StringName = _cell_item_id(c)
 	var q: int = int(c.get("quantity", 0))
 	if q < quantity:
 		return ERR_INVALID_DATA
@@ -65,7 +67,10 @@ func sell_from_bag(seller_id: StringName, merchant_id: StringName, bag_index: in
 	var data: Resource = _registry.get_character(seller_id)
 	if data == null:
 		return ERR_DOES_NOT_EXIST
-	var payout: int = int(def.sell_price) * quantity
+	var unit_sell: int = int(def.sell_price)
+	if _item_instances != null and _item_instances.has_method("get_sell_price_for_cell"):
+		unit_sell = int(_item_instances.call("get_sell_price_for_cell", c))
+	var payout: int = unit_sell * quantity
 	if _inventory.remove_quantity_from_slot(seller_id, bag_index, quantity) != OK:
 		return FAILED
 	data.gold = int(data.gold) + payout
@@ -96,3 +101,10 @@ func _restore_stock(merchant_id: StringName, item_id: StringName, quantity: int)
 			return
 	list.append({"item_id": String(item_id), "quantity": quantity})
 	_stock[merchant_id] = list
+
+
+func _cell_item_id(cell: Dictionary) -> StringName:
+	if _item_instances != null and _item_instances.has_method("get_cell_item_id"):
+		return _item_instances.call("get_cell_item_id", cell) as StringName
+	var raw: Variant = cell.get("item_id", &"")
+	return raw as StringName if raw is StringName else StringName(str(raw))

@@ -3,7 +3,7 @@ extends Node
 
 const CharacterDataScr := preload("res://systems/character_data.gd")
 
-const SAVE_VERSION: int = 3
+const SAVE_VERSION: int = 4
 
 signal save_completed(path: String)
 signal load_completed(path: String)
@@ -14,6 +14,7 @@ func save_registry(
 	registry: Node,
 	inventory: Node = null,
 	equipment: Node = null,
+	item_instances: Node = null,
 ) -> Error:
 	var list: Array = []
 	for id in registry.list_character_ids():
@@ -28,6 +29,8 @@ func save_registry(
 		payload["inventory"] = inventory.export_state()
 	if equipment != null and equipment.has_method("export_state"):
 		payload["equipment"] = equipment.export_state()
+	if item_instances != null and item_instances.has_method("export_state"):
+		payload["item_instances"] = item_instances.export_state()
 	var json_text: String = JSON.stringify(payload, "\t")
 	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
@@ -43,6 +46,7 @@ func load_registry(
 	registry: Node,
 	inventory: Node = null,
 	equipment: Node = null,
+	item_instances: Node = null,
 ) -> Error:
 	if not FileAccess.file_exists(path):
 		return ERR_FILE_NOT_FOUND
@@ -68,6 +72,8 @@ func load_registry(
 			return err
 	var ver: int = int(root.get("version", 1))
 	if ver >= 2:
+		if item_instances != null and root.has("item_instances") and item_instances.has_method("import_state"):
+			item_instances.import_state(root["item_instances"] as Dictionary)
 		if inventory != null and root.has("inventory") and inventory.has_method("import_state"):
 			inventory.import_state(root["inventory"] as Dictionary)
 		if equipment != null and root.has("equipment") and equipment.has_method("import_state"):

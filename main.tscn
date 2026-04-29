@@ -1,4 +1,4 @@
-[gd_scene load_steps=21 format=3]
+[gd_scene load_steps=22 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://ui/main_shell.tscn" id="2_shell"]
@@ -20,6 +20,7 @@
 [ext_resource type="Script" path="res://systems/merchant_system.gd" id="18_merch"]
 [ext_resource type="Script" path="res://systems/ground_items_system.gd" id="19_ground"]
 [ext_resource type="Script" path="res://systems/corpse_loot_system.gd" id="20_corpse"]
+[ext_resource type="Script" path="res://systems/item_instance_system.gd" id="21_iteminst"]
 
 [node name="Main" type="Node"]
 script = ExtResource("1_main")
@@ -37,6 +38,9 @@ script = ExtResource("15_save")
 
 [node name="ItemCatalog" type="Node" parent="Systems"]
 script = ExtResource("16_cat")
+
+[node name="ItemInstanceSystem" type="Node" parent="Systems"]
+script = ExtResource("21_iteminst")
 
 [node name="InventorySystem" type="Node" parent="Systems"]
 script = ExtResource("3_inv")

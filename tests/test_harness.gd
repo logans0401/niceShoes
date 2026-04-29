@@ -12,10 +12,14 @@ const EquipmentSystemScr := preload("res://systems/equipment_system.gd")
 const InventoryScr := preload("res://systems/inventory_system.gd")
 const InvBalScr := preload("res://data/inventory_balance_config.gd")
 const CatScr := preload("res://systems/item_catalog.gd")
+const ItemInstanceScr := preload("res://systems/item_instance_system.gd")
 const TradeScr := preload("res://systems/trade_system.gd")
 const GroundScr := preload("res://systems/ground_items_system.gd")
+const CorpseScr := preload("res://systems/corpse_loot_system.gd")
+const LootScr := preload("res://systems/loot_system.gd")
 const StatsSystemScr := preload("res://systems/stats_system.gd")
 const CombatSystemScr := preload("res://systems/combat_system.gd")
+const CombatBalanceScr := preload("res://data/combat_balance_config.gd")
 const AutomationSystemScr := preload("res://systems/automation_system.gd")
 const GameConstantsScr := preload("res://scripts/game_constants.gd")
 const CharacterSchemaScr := preload("res://scripts/character_schema.gd")
@@ -43,6 +47,9 @@ func _run_all() -> int:
 		return 1
 	if not _test_combat_stats_pipeline():
 		push_error("test_harness: combat stats pipeline failed")
+		return 1
+	if not _test_combat_body_area_mitigation():
+		push_error("test_harness: combat body-area mitigation failed")
 		return 1
 	if not _test_automation():
 		push_error("test_harness: automation failed")
@@ -94,6 +101,15 @@ func _run_all() -> int:
 		return 1
 	if not _test_inventory_equip_and_burden():
 		push_error("test_harness: inventory/equip/burden failed")
+		return 1
+	if not _test_item_instances_and_equipment_details():
+		push_error("test_harness: item instances/equipment failed")
+		return 1
+	if not _test_death_penalty_fades_with_full_xp():
+		push_error("test_harness: death penalty fade failed")
+		return 1
+	if not _test_loot_tiers_and_corpse_transfer():
+		push_error("test_harness: loot tier/corpse transfer failed")
 		return 1
 	if not _test_trade_range_gate():
 		push_error("test_harness: trade range failed")
@@ -199,6 +215,27 @@ func _test_combat_stats_pipeline() -> bool:
 	var d1: float = float(strong_hit.get("damage", 0.0))
 	var d2: float = float(weak_hit.get("damage", 0.0))
 	return bool(strong_hit.get("hit", false)) and bool(weak_hit.get("hit", false)) and d1 > d2
+
+
+func _test_combat_body_area_mitigation() -> bool:
+	var combat: Node = CombatSystemScr.new()
+	var cfg = CombatBalanceScr.new()
+	combat.configure(cfg)
+	var armor_by_area: Dictionary = {}
+	for area in CombatBalanceScr.BODY_AREAS:
+		armor_by_area[area] = {"armor_level": 5.0, "damage_ratings": {DamageTypes.Id.SLASHING: 5}}
+	var res: Dictionary = combat.resolve_melee_hit(
+		{"attack_rating": 10.0},
+		{"defense_rating": 0.0, "armor_by_area": armor_by_area},
+		DamageTypes.Id.SLASHING,
+	)
+	var ok: bool = (
+		res.has("target_area")
+		and res.has("raw_damage")
+		and float(res.get("damage", 0.0)) < float(res.get("raw_damage", 0.0))
+	)
+	_free_node(combat)
+	return ok
 
 
 func _test_automation() -> bool:
@@ -829,6 +866,108 @@ func _count_bag_items(bag: Array) -> int:
 		if c != null:
 			n += 1
 	return n
+
+
+func _test_item_instances_and_equipment_details() -> bool:
+	var balance = _balance()
+	var inv_bal = load("res://data/default_inventory_balance.tres") as Resource
+	var reg = CharacterRegistryScr.new()
+	reg.configure(balance)
+	var cat = CatScr.new()
+	cat.ensure_items()
+	var inst = ItemInstanceScr.new()
+	inst.configure(cat)
+	var inv = InventoryScr.new()
+	var eq = EquipmentSystemScr.new()
+	inv.configure(cat, reg, inv_bal, inst)
+	eq.configure(inv, cat, inst)
+	inv.attach_equipment(eq)
+	var cd = CharacterDataScr.new()
+	cd.character_id = "inst_u"
+	cd.ensure_defaults()
+	reg.register_character(cd)
+	var left: int = inv.try_add_item(&"inst_u", &"iron_sword", 1)
+	var cell: Variant = inv.get_cell(&"inst_u", 0)
+	var ok: bool = left == 0 and cell is Dictionary and String((cell as Dictionary).get("instance_id", "")) != ""
+	if ok:
+		ok = eq.equip_from_bag(&"inst_u", &"main_hand", 0) == OK
+	if ok:
+		var key: StringName = eq.get_equipped_key(&"inst_u", &"main_hand")
+		var details: Dictionary = eq.get_equipped_details(&"inst_u", &"main_hand")
+		ok = key != &"" and eq.get_equipped_item(&"inst_u", &"main_hand") == &"iron_sword" and int(details.get("damage_max", 0)) >= 3
+	_free_node(eq)
+	_free_node(inv)
+	_free_node(inst)
+	_free_node(cat)
+	_free_node(reg)
+	return ok
+
+
+func _test_death_penalty_fades_with_full_xp() -> bool:
+	var balance = _balance()
+	var combat_balance = CombatBalanceScr.new()
+	combat_balance.death_penalty_recovery_per_xp = 0.01
+	var reg = CharacterRegistryScr.new()
+	reg.configure(balance)
+	var cd = CharacterDataScr.new()
+	cd.character_id = "death_u"
+	cd.ensure_defaults()
+	reg.register_character(cd)
+	var prog = CharacterProgressionScr.new()
+	prog.configure(reg, balance, combat_balance)
+	prog.apply_death_penalty(&"death_u")
+	var before: float = float(cd.meta.get("death_penalty_percent", 0.0))
+	prog.add_total_experience(&"death_u", 2)
+	var after: float = float(cd.meta.get("death_penalty_percent", 0.0))
+	var ok: bool = cd.total_experience == 2 and cd.unspent_experience == 2 and before > after
+	_free_node(prog)
+	_free_node(reg)
+	return ok
+
+
+func _test_loot_tiers_and_corpse_transfer() -> bool:
+	var balance = _balance()
+	var inv_bal = load("res://data/default_inventory_balance.tres") as Resource
+	var reg = CharacterRegistryScr.new()
+	reg.configure(balance)
+	var cd = CharacterDataScr.new()
+	cd.character_id = "loot_u"
+	cd.ensure_defaults()
+	reg.register_character(cd)
+	var cat = CatScr.new()
+	cat.ensure_items()
+	var inst = ItemInstanceScr.new()
+	inst.configure(cat)
+	var inv = InventoryScr.new()
+	inv.configure(cat, reg, inv_bal, inst)
+	var trade = TradeScr.new()
+	trade.configure(inv, inv_bal)
+	trade.set_character_position(&"loot_u", Vector2.ZERO)
+	var corpse = CorpseScr.new()
+	corpse.configure(inv, trade, inv_bal)
+	var loot = LootScr.new()
+	loot.configure(null, corpse, inv, inst, CombatBalanceScr.new())
+	if loot.level_to_loot_tier(97) != 20:
+		_free_node(loot)
+		_free_node(corpse)
+		_free_node(trade)
+		_free_node(inv)
+		_free_node(inst)
+		_free_node(cat)
+		_free_node(reg)
+		return false
+	loot.register_corpse_with_drops(&"corpse_test", Vector2.ZERO, 20)
+	var bag: Array = corpse.get_corpse_bag(&"corpse_test")
+	var ok: bool = not bag.is_empty() and corpse.loot_bag_slot_to_character(&"loot_u", &"corpse_test", 0) == OK
+	ok = ok and inv.get_cell(&"loot_u", 0) != null
+	_free_node(loot)
+	_free_node(corpse)
+	_free_node(trade)
+	_free_node(inv)
+	_free_node(inst)
+	_free_node(cat)
+	_free_node(reg)
+	return ok
 
 
 func _test_trade_range_gate() -> bool:

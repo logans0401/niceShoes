@@ -3,6 +3,16 @@ class_name CombatTestEnemy
 ## Placeholder enemy for combat testing. Hostile AI strikes on its own cadence once provoked.
 
 @export var max_health: float = 42.0
+@export_range(1, 100, 1) var level: int = 3
+@export var loot_tier: int = 1
+@export var attributes: Dictionary = {
+	"strength": 10,
+	"heartiness": 10,
+	"ability": 10,
+	"reflexes": 10,
+	"mind": 10,
+	"wisdom": 10,
+}
 @export var attack_rating: float = 7.0
 @export var defense_rating: float = 3.5
 ## Secret weapon profile for damage rolls (not shown to player unless you document it on the scene).
@@ -29,6 +39,7 @@ var _attack_cd: float = 0.0
 
 func _ready() -> void:
 	add_to_group(&"combat_enemies")
+	loot_tier = clampi(int(ceil(float(maxi(1, level)) / 5.0)), 1, 20)
 	current_health = max_health
 	_refresh_glyph()
 
@@ -40,6 +51,9 @@ func get_combat_stats() -> Dictionary:
 		"weapon_damage_min": hidden_damage_min,
 		"weapon_damage_max": hidden_damage_max,
 		"damage_type": hidden_damage_type,
+		"level": level,
+		"attributes": attributes,
+		"vitals": {"health": current_health, "max_health": max_health},
 	}
 
 

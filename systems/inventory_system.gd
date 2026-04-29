@@ -10,21 +10,31 @@ var _catalog: Node
 var _registry: Node
 var _equipment: Node
 var _inv_cfg: Resource
+var _item_instances: Node = null
 
-## character_id -> Array of slot cells (null or { "item_id": StringName, "quantity": int })
+## character_id -> Array of slot cells (null or { "item_id": StringName, "instance_id": StringName, "quantity": int })
 var _bags: Dictionary = {}
 
 
-func configure(catalog: Node, registry: Node, inv_balance: Resource) -> void:
+func configure(catalog: Node, registry: Node, inv_balance: Resource, item_instances: Node = null) -> void:
 	_catalog = catalog
 	_registry = registry
 	_inv_cfg = inv_balance
+	_item_instances = item_instances
 	if _inv_cfg == null:
 		_inv_cfg = load("res://data/default_inventory_balance.tres") as Resource
 
 
 func attach_equipment(equipment: Node) -> void:
 	_equipment = equipment
+
+
+func attach_item_instances(item_instances: Node) -> void:
+	_item_instances = item_instances
+
+
+func get_registry() -> Node:
+	return _registry
 
 
 func get_bag_slot_count() -> int:
@@ -56,7 +66,7 @@ func try_add_item(character_id: StringName, item_id: StringName, amount: int) ->
 		if cell == null:
 			continue
 		var c: Dictionary = cell as Dictionary
-		if StringName(c.get("item_id", &"")) != item_id:
+		if _cell_item_id(c) != item_id:
 			continue
 		var q: int = int(c.get("quantity", 0))
 		var room: int = max_stack - q
@@ -75,7 +85,7 @@ func try_add_item(character_id: StringName, item_id: StringName, amount: int) ->
 		if idx < 0:
 			break
 		var chunk: int = mini(max_stack, left)
-		bag[idx] = {"item_id": item_id, "quantity": chunk}
+		bag[idx] = _make_cell(item_id, chunk)
 		left -= chunk
 	_recalc_burden(character_id)
 	inventory_changed.emit(character_id)
@@ -90,8 +100,10 @@ func try_take_single(character_id: StringName, bag_index: int) -> Dictionary:
 	if cell == null:
 		return {}
 	var c: Dictionary = cell as Dictionary
-	var id: StringName = c.get("item_id", &"") as StringName
+	var id: StringName = _cell_item_id(c)
 	var q: int = int(c.get("quantity", 0))
+	var taken: Dictionary = c.duplicate(true)
+	taken["quantity"] = 1
 	if q <= 1:
 		bag[bag_index] = null
 	else:
@@ -99,11 +111,37 @@ func try_take_single(character_id: StringName, bag_index: int) -> Dictionary:
 		bag[bag_index] = c
 	_recalc_burden(character_id)
 	inventory_changed.emit(character_id)
-	return {"item_id": id, "quantity": 1}
+	return taken
 
 
 func refund_single(character_id: StringName, item_id: StringName) -> void:
 	try_add_item(character_id, item_id, 1)
+
+
+func try_add_cell(character_id: StringName, cell: Dictionary) -> int:
+	var item_id: StringName = _cell_item_id(cell)
+	var qty: int = int(cell.get("quantity", 1))
+	if item_id == &"" or qty <= 0:
+		return qty
+	var bag: Array = _ensure_bag(character_id)
+	var idx: int = _first_free_index(bag)
+	if idx < 0:
+		return qty
+	bag[idx] = cell.duplicate(true)
+	_recalc_burden(character_id)
+	inventory_changed.emit(character_id)
+	return 0
+
+
+func try_add_equipped_key(character_id: StringName, item_key: StringName, quantity: int = 1) -> int:
+	if quantity <= 0:
+		return 0
+	if _item_instances != null and _item_instances.has_method("has_instance") and bool(_item_instances.call("has_instance", item_key)):
+		var inst: Resource = _item_instances.call("get_instance", item_key) as Resource
+		if inst == null:
+			return quantity
+		return try_add_cell(character_id, {"item_id": inst.item_id, "instance_id": item_key, "quantity": quantity})
+	return try_add_item(character_id, item_key, quantity)
 
 
 func take_entire_slot(character_id: StringName, bag_index: int) -> Variant:
@@ -243,12 +281,33 @@ func _recalc_burden(character_id: StringName) -> void:
 		if cell == null:
 			continue
 		var c: Dictionary = cell as Dictionary
-		var iid: StringName = c.get("item_id", &"") as StringName
+		var iid: StringName = _cell_item_id(c)
 		var q: int = int(c.get("quantity", 0))
-		total += _catalog.get_weight(iid) * float(q)
+		var unit_w: float = _catalog.get_weight(iid)
+		if _item_instances != null and _item_instances.has_method("get_weight_for_cell"):
+			unit_w = float(_item_instances.call("get_weight_for_cell", c))
+		total += unit_w * float(q)
 	if _equipment != null:
 		for slot in _EqScr.ALL_SLOTS:
-			var eid: StringName = _equipment.get_equipped_item(character_id, StringName(slot))
-			if String(eid) != "":
-				total += _catalog.get_weight(eid)
+			var ekey: StringName = _equipment.get_equipped_key(character_id, StringName(slot)) if _equipment.has_method("get_equipped_key") else _equipment.get_equipped_item(character_id, StringName(slot))
+			if String(ekey) != "":
+				if _item_instances != null and _item_instances.has_method("has_instance") and bool(_item_instances.call("has_instance", ekey)):
+					var inst: Resource = _item_instances.call("get_instance", ekey) as Resource
+					if inst != null:
+						total += float(inst.weight)
+				else:
+					total += _catalog.get_weight(ekey)
 	data.laden_burden = total
+
+
+func _make_cell(item_id: StringName, quantity: int) -> Dictionary:
+	if _item_instances != null and _item_instances.has_method("create_cell"):
+		return _item_instances.call("create_cell", item_id, quantity, 1, "inventory") as Dictionary
+	return {"item_id": item_id, "quantity": quantity}
+
+
+func _cell_item_id(cell: Dictionary) -> StringName:
+	if _item_instances != null and _item_instances.has_method("get_cell_item_id"):
+		return _item_instances.call("get_cell_item_id", cell) as StringName
+	var raw: Variant = cell.get("item_id", &"")
+	return raw as StringName if raw is StringName else StringName(str(raw))

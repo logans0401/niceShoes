@@ -177,7 +177,7 @@ func refresh() -> void:
 			btn.text = "·"
 		else:
 			var d: Dictionary = cell as Dictionary
-			var nid: String = String(d.get("item_id", ""))
+			var nid: String = String(_cell_item_id(d))
 			btn.text = nid.substr(0, 3) + str(int(d.get("quantity", 1)))
 	var idx: int = 0
 	for slot in _EqScr.ALL_SLOTS:
@@ -229,7 +229,8 @@ func _select_equip_slot(slot: String) -> void:
 		return
 	var sid: StringName = StringName(slot)
 	var iid: String = String(_equipment.get_equipped_item(_char_id, sid))
-	_emit_inv_selection({"source": "equip", "equip_slot": slot, "item_id": iid, "quantity": 1})
+	var key: String = String(_equipment.call("get_equipped_key", _char_id, sid)) if _equipment.has_method("get_equipped_key") else iid
+	_emit_inv_selection({"source": "equip", "equip_slot": slot, "item_id": iid, "instance_id": key, "quantity": 1})
 
 
 func _select_bag_slot(index: int) -> void:
@@ -239,9 +240,12 @@ func _select_bag_slot(index: int) -> void:
 		var cell: Variant = _inventory.get_cell(_char_id, index)
 		if cell is Dictionary:
 			var d: Dictionary = cell as Dictionary
-			iid = String(d.get("item_id", ""))
+			iid = String(_cell_item_id(d))
 			qty = int(d.get("quantity", 1))
-	_emit_inv_selection({"source": "bag", "index": index, "item_id": iid, "quantity": qty})
+			var inst_id: String = String(d.get("instance_id", ""))
+			_emit_inv_selection({"source": "bag", "index": index, "item_id": iid, "instance_id": inst_id, "quantity": qty})
+			return
+	_emit_inv_selection({"source": "bag", "index": index, "item_id": iid, "instance_id": "", "quantity": qty})
 
 
 func _unequip_slot(slot: String) -> void:
@@ -260,7 +264,7 @@ func _try_equip_from_bag(index: int) -> void:
 	if cell == null:
 		return
 	var d: Dictionary = cell as Dictionary
-	var iid: StringName = d.get("item_id", &"") as StringName
+	var iid: StringName = _cell_item_id(d)
 	var def: Resource = _catalog.get_definition(iid)
 	if def == null:
 		return
@@ -269,3 +273,10 @@ func _try_equip_from_bag(index: int) -> void:
 		return
 	_equipment.equip_from_bag(_char_id, StringName(es), index)
 	refresh()
+
+
+func _cell_item_id(cell: Dictionary) -> StringName:
+	if _inventory != null and _inventory.has_method("_cell_item_id"):
+		return _inventory.call("_cell_item_id", cell) as StringName
+	var raw: Variant = cell.get("item_id", &"")
+	return raw as StringName if raw is StringName else StringName(str(raw))

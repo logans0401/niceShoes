@@ -360,7 +360,8 @@ func _tick_runner(runner_id: StringName, delta: float) -> void:
 		task_started.emit(runner_id, st.active)
 		_log(st, "Started: %s (p=%d)" % [st.active.label, st.active.priority])
 		_emit_queue_changed(runner_id)
-	_try_queue_preempt_active(runner_id, st)
+	if _try_queue_preempt_active(runner_id, st):
+		return
 	if st.active == null:
 		return
 	var done := _advance_task(st, st.active, delta)
@@ -368,21 +369,21 @@ func _tick_runner(runner_id: StringName, delta: float) -> void:
 		_finish_active(runner_id, st, true)
 
 
-func _try_queue_preempt_active(runner_id: StringName, st: _QueueState) -> void:
+func _try_queue_preempt_active(runner_id: StringName, st: _QueueState) -> bool:
 	if not queue_preempts_lower_priority_active:
-		return
+		return false
 	if is_dispatch_held(runner_id):
-		return
+		return false
 	if st.active == null or st.queue.is_empty():
-		return
+		return false
 	_sort_queue(st)
 	var head: AutomationTask = st.queue[0] as AutomationTask
 	var cur: AutomationTask = st.active
 	if head.priority <= cur.priority:
-		return
+		return false
 	if not cur.interruptible:
 		_log(st, "Preempt blocked (active not interruptible): %s" % cur.label)
-		return
+		return false
 	st.suspended.append(cur)
 	task_interrupted.emit(runner_id, cur)
 	_log(st, "Preempted (queue higher priority): %s" % cur.label)
@@ -390,6 +391,7 @@ func _try_queue_preempt_active(runner_id: StringName, st: _QueueState) -> void:
 	task_started.emit(runner_id, st.active)
 	_log(st, "Started: %s (p=%d)" % [st.active.label, st.active.priority])
 	_emit_queue_changed(runner_id)
+	return true
 
 
 func _finish_active(runner_id: StringName, st: _QueueState, success: bool) -> void:

@@ -12,11 +12,15 @@ signal unspent_changed(character_id: StringName, new_unspent: int)
 
 var _registry: Node
 var _balance: Resource
+var _combat_balance: Resource = null
 
 
-func configure(registry: Node, balance: Resource) -> void:
+func configure(registry: Node, balance: Resource, combat_balance: Resource = null) -> void:
 	_registry = registry
 	_balance = balance
+	_combat_balance = combat_balance
+	if _combat_balance == null:
+		_combat_balance = load("res://data/default_combat_balance.tres") as Resource
 
 
 ## All XP gains: increases lifetime total (level) and unspent pool by the same amount.
@@ -28,6 +32,7 @@ func add_total_experience(character_id: StringName, amount: int) -> void:
 		return
 	data.total_experience += amount
 	data.unspent_experience += amount
+	_reduce_death_penalty(data, amount)
 	_recompute_level(data, character_id)
 	experience_awarded.emit(character_id, amount)
 	unspent_changed.emit(character_id, data.unspent_experience)
@@ -132,6 +137,27 @@ func add_skill_experience(character_id: StringName, _skill_id: StringName, amoun
 
 func add_attribute_experience(character_id: StringName, _attribute_id: StringName, amount: int) -> void:
 	add_total_experience(character_id, amount)
+
+
+func apply_death_penalty(character_id: StringName) -> void:
+	var data: Resource = _registry.get_character(character_id)
+	if data == null:
+		return
+	if _combat_balance == null:
+		_combat_balance = load("res://data/default_combat_balance.tres") as Resource
+	var cur: float = float(data.meta.get("death_penalty_percent", 0.0))
+	var next: float = minf(_combat_balance.death_penalty_max, cur + _combat_balance.death_penalty_per_death)
+	data.meta["death_penalty_percent"] = next
+
+
+func _reduce_death_penalty(data: Resource, amount: int) -> void:
+	if _combat_balance == null:
+		return
+	var cur: float = float(data.meta.get("death_penalty_percent", 0.0))
+	if cur <= 0.0:
+		return
+	var next: float = maxf(0.0, cur - float(amount) * _combat_balance.death_penalty_recovery_per_xp)
+	data.meta["death_penalty_percent"] = next
 
 
 func sync_level_from_xp(character_id: StringName) -> void:

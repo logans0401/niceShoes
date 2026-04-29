@@ -5,6 +5,7 @@ const WorldActorScene := preload("res://maps/world_actor.tscn")
 const CharacterDataScr := preload("res://systems/character_data.gd")
 const _CombatTestEnemyScr: Script = preload("res://scripts/combat_test_enemy.gd")
 const _Sch := preload("res://scripts/character_schema.gd")
+const _Eq := preload("res://scripts/equipment_schema.gd")
 const _MAX_PARTY_CARDS := 4
 const _COMMAND_FEED_MAX_LINES := 80
 const _MELEE_RANGE_PX := 56.0
@@ -22,6 +23,7 @@ const _SEL_CTX_UNEQUIP := 3
 const _SEL_CTX_READ_SCROLL := 4
 const _SEL_CTX_ATTACK_CAST := 5
 const _SEL_CTX_MEDITATE := 6
+const _SEL_CTX_LOOT := 7
 
 @onready var _world_viewport: SubViewport = %WorldViewport
 @onready var _world_viewport_container: SubViewportContainer = %WorldViewportContainer
@@ -89,6 +91,9 @@ var _stats: Node
 var _equipment: Node
 var _inventory: Node
 var _catalog: Node = null
+var _item_instances: Node = null
+var _loot: LootSystem = null
+var _corpse: CorpseLootSystem = null
 var _current_runner_id: StringName = &"default"
 var _inventory_panel: Node
 var _party_cards: Array = []
@@ -128,6 +133,7 @@ var _combat: CombatSystem = null
 var _actors_root: Node2D = null
 ## character_id -> CharacterBody2D (world presence)
 var _world_actor_by_id: Dictionary = {}
+var _corpse_node_by_id: Dictionary = {}
 var _creation_dialog: AcceptDialog = null
 var _creation_name_edit: LineEdit = null
 var _creation_points_label: Label = null
@@ -207,12 +213,14 @@ func _physics_process(delta: float) -> void:
 	if _automation != null:
 		_sync_automation_external_predicates()
 		_tick_automation_vendor_commerce()
+		_tick_automation_corpse_loot()
 		_tick_automation_support_evaluation()
 		_automation.tick(delta)
 	_apply_follow_movement(delta)
 	_tick_player_spell_cast(delta)
 	_tick_ui_directed_attack(delta)
 	_tick_hostile_enemies(delta)
+	_prune_corpse_markers()
 	_tick_passive_mana_regen(delta)
 	_refresh_bc_meditate_button_label()
 	_refresh_hud_vitals()
@@ -1176,13 +1184,15 @@ func bind_inventory_ui(
 	stats: Node,
 	char_balance: Resource,
 	inv_balance: Resource,
-	character_id: StringName
+	character_id: StringName,
+	item_instances: Node = null
 ) -> void:
 	_registry = registry
 	_stats = stats
 	_equipment = equipment
 	_inventory = inventory
 	_catalog = catalog
+	_item_instances = item_instances
 	_balance = char_balance
 	_focus_character_id = character_id
 	if _inventory_panel != null:
@@ -1230,6 +1240,11 @@ func bind_inventory_ui(
 
 func bind_combat_system(combat: CombatSystem) -> void:
 	_combat = combat
+
+
+func bind_loot_systems(loot: LootSystem, corpse: CorpseLootSystem) -> void:
+	_loot = loot
+	_corpse = corpse
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -1289,10 +1304,38 @@ func _inventory_satisfies_loot_filter(character_id: StringName, loot_filter: Dic
 		if cell == null:
 			continue
 		var c: Dictionary = cell as Dictionary
-		var item_id: StringName = c.get("item_id", &"") as StringName
+		var item_id: StringName = _cell_item_id(c)
 		if item_id == want:
 			return true
 	return false
+
+
+func _cell_item_id(cell: Dictionary) -> StringName:
+	if _item_instances != null and _item_instances.has_method("get_cell_item_id"):
+		return _item_instances.call("get_cell_item_id", cell) as StringName
+	var raw: Variant = cell.get("item_id", &"")
+	return raw as StringName if raw is StringName else StringName(str(raw))
+
+
+func _cell_description(cell: Dictionary) -> Dictionary:
+	if _item_instances != null and _item_instances.has_method("describe_cell"):
+		return _item_instances.call("describe_cell", cell) as Dictionary
+	var item_id: StringName = _cell_item_id(cell)
+	if _catalog == null or item_id == &"":
+		return {}
+	var def: Resource = _catalog.get_definition(item_id)
+	if def == null:
+		return {}
+	return {
+		"item_id": String(item_id),
+		"display_name": str(def.display_name),
+		"weight": float(def.weight),
+		"value": int(def.sell_price),
+		"equip_slot": str(def.equip_slot),
+		"weapon_kind": str(def.weapon_kind),
+		"damage_min": int(def.damage_min),
+		"damage_max": int(def.damage_max),
+	}
 
 
 func _sync_automation_external_predicates() -> void:
@@ -1336,7 +1379,7 @@ func _try_automation_sell_one_slot(seller_id: StringName, merchant_id: StringNam
 		if cell == null:
 			continue
 		var c: Dictionary = cell as Dictionary
-		var item_id: StringName = c.get("item_id", &"") as StringName
+		var item_id: StringName = _cell_item_id(c)
 		if item_id == &"":
 			continue
 		if _merchant.sell_from_bag(seller_id, merchant_id, idx, 1) == OK:
@@ -1374,6 +1417,36 @@ func _tick_automation_vendor_commerce() -> void:
 			var ierr: Error = _merchant.buy_item(cid, mid2, StringName(buy_raw), qty)
 			if ierr == OK:
 				task.data["external_done"] = true
+
+
+func _tick_automation_corpse_loot() -> void:
+	if _automation == null or _corpse == null:
+		return
+	for rid in _automation.list_runner_ids():
+		var cid := _resolve_runner_to_character_id(rid)
+		if cid == &"":
+			continue
+		var tv: Variant = _automation.get_active_task_for(rid)
+		if tv == null or not tv is AutomationSystem.AutomationTask:
+			continue
+		var task: AutomationSystem.AutomationTask = tv as AutomationSystem.AutomationTask
+		if task.type != AutomationSystem.TaskType.SEARCH_LOOT:
+			continue
+		var corpse_id: StringName = StringName(str(task.data.get("corpse_id", "")))
+		if corpse_id == &"":
+			var ids: PackedStringArray = _corpse.list_corpse_ids()
+			if ids.is_empty():
+				continue
+			corpse_id = StringName(ids[0])
+		var bag: Array = _corpse.get_corpse_bag(corpse_id)
+		for i in range(bag.size()):
+			if bag[i] == null:
+				continue
+			var err: Error = _corpse.loot_bag_slot_to_character(cid, corpse_id, i)
+			if err == OK:
+				task.data["use_external_completion"] = true
+				task.data["external_done"] = true
+			break
 
 
 func _tick_automation_support_evaluation() -> void:
@@ -1453,20 +1526,23 @@ func _attack_context_for(attacker_id: StringName) -> Dictionary:
 	var def: Resource = WeaponItemUtils.main_hand_definition(attacker_id, _equipment, _catalog)
 	if def == null:
 		return out
+	var eq_details: Dictionary = {}
+	if _equipment.has_method("get_equipped_details"):
+		eq_details = _equipment.call("get_equipped_details", attacker_id, StringName(_Eq.SLOT_MAIN_HAND)) as Dictionary
 	var kind: String = WeaponItemUtils.weapon_kind(def)
 	if kind == "melee":
 		out["mode"] = "melee"
 		out["range_px"] = _MELEE_RANGE_PX
-		out["dmg_min"] = int(def.damage_min)
-		out["dmg_max"] = int(def.damage_max)
-		out["damage_type"] = int(def.damage_type)
+		out["dmg_min"] = int(eq_details.get("damage_min", int(def.damage_min)))
+		out["dmg_max"] = int(eq_details.get("damage_max", int(def.damage_max)))
+		out["damage_type"] = int(eq_details.get("damage_type", int(def.damage_type)))
 		return out
 	if kind == "missile":
 		out["mode"] = "missile"
 		out["range_px"] = _MISSILE_RANGE_PX
-		out["dmg_min"] = int(def.damage_min)
-		out["dmg_max"] = int(def.damage_max)
-		out["damage_type"] = int(def.damage_type)
+		out["dmg_min"] = int(eq_details.get("damage_min", int(def.damage_min)))
+		out["dmg_max"] = int(eq_details.get("damage_max", int(def.damage_max)))
+		out["damage_type"] = int(eq_details.get("damage_type", int(def.damage_type)))
 		return out
 	if kind == "casting":
 		out["range_px"] = _SPELL_CAST_RANGE_PX
@@ -1516,8 +1592,7 @@ func _on_hunt_world_pulse(_runner_id: StringName, task: Variant) -> void:
 		return
 	var now: int = Time.get_ticks_msec()
 	var last: int = int(at.data.get("hunt_last_strike_ms", 0))
-	const HUNT_STRIKE_COOLDOWN_MS := 650
-	if now - last < HUNT_STRIKE_COOLDOWN_MS:
+	if now - last < _attack_cooldown_ms(cid):
 		return
 	var lock_id: int = int(at.data.get("hunt_lock_instance_id", 0))
 	var outcome: Dictionary
@@ -1554,8 +1629,7 @@ func _on_assist_world_pulse(_runner_id: StringName, task: Variant) -> void:
 		return
 	var now: int = Time.get_ticks_msec()
 	var last: int = int(at.data.get("assist_last_strike_ms", 0))
-	const ASSIST_STRIKE_COOLDOWN_MS := 650
-	if now - last < ASSIST_STRIKE_COOLDOWN_MS:
+	if now - last < _attack_cooldown_ms(cid):
 		return
 	var outcome: Dictionary = _perform_melee_against_node(cid, prey, true, "[assist]")
 	if bool(outcome.get("struck", false)):
@@ -1754,10 +1828,21 @@ func _apply_pc_hit_on_enemy_node(
 			var xpv: Variant = best.get("xp_reward")
 			if xpv != null:
 				xp_award = int(xpv)
+			_spawn_enemy_corpse(best as Node2D)
 		_award_kill_experience_split(xp_award, attacker_id, to_feed, feed_prefix)
 	_refresh_hud_vitals()
 	_refresh_party_cards()
 	return outcome
+
+
+func _attack_cooldown_ms(character_id: StringName) -> int:
+	if _registry == null or _stats == null or _equipment == null:
+		return 5000
+	var data: Resource = _registry.get_character(character_id)
+	if data == null:
+		return 5000
+	var st: Dictionary = _stats.get_effective_stats(character_id, data, _equipment)
+	return maxi(250, int(round(float(st.get("melee_attack_interval_sec", 5.0)) * 1000.0)))
 
 
 func _party_character_id_from_world_body(node: Node2D) -> StringName:
@@ -1783,6 +1868,12 @@ func _apply_pc_offensive_spell_on_party_actor(
 	var tdata: Resource = _registry.get_character(target_id)
 	if tdata == null:
 		return outcome
+	outcome["handled"] = true
+	if to_feed:
+		var safe_line: String = "%s Friendly characters cannot be attacked or damaged." % feed_prefix
+		_append_command_feed(safe_line, attacker_id)
+		_append_command_feed(safe_line, target_id)
+	return outcome
 	var mc: int = int(ctx.get("mana_cost", 0))
 	if apply_mana_cost and mc > 0 and float(data.current_mana) < float(mc):
 		outcome["handled"] = true
@@ -1930,7 +2021,10 @@ func _resolve_enemy_melee_exchange(enemy: Node2D, victim_id: StringName) -> void
 	var edt: int = int(enemy_stats.get("damage_type", DamageTypes.Id.SLASHING))
 	var res: Dictionary = _combat.resolve_melee_hit(enemy_stats, vic_stats, edt, wmin, wmax)
 	var dmg: float = float(res.get("damage", 0.0))
-	_combat.apply_vitals_damage(_registry, _stats, victim_id, dmg)
+	var victim_node: Node2D = _world_actor_by_id.get(victim_id) as Node2D
+	var death_res: Dictionary = _combat.apply_vitals_damage(_registry, _stats, victim_id, dmg)
+	if bool(death_res.get("died", false)):
+		_handle_character_death(victim_id, (victim_node.global_position if victim_node != null else enemy.global_position))
 	if dmg > 0.0 and enemy.has_method("register_aggro_against"):
 		enemy.call("register_aggro_against", victim_id)
 	var elabel: String = str(enemy.name)
@@ -1939,6 +2033,79 @@ func _resolve_enemy_melee_exchange(enemy: Node2D, victim_id: StringName) -> void
 	_append_command_feed("[combat] %s hits %s for %.1f" % [elabel, String(victim_id), dmg], victim_id)
 	_refresh_hud_vitals()
 	_refresh_party_cards()
+
+
+func _spawn_enemy_corpse(enemy: Node2D) -> void:
+	if enemy == null or _loot == null or _corpse == null:
+		return
+	var lvl: int = 1
+	var tier: int = 1
+	if enemy.get_script() == _CombatTestEnemyScr:
+		var lv: Variant = enemy.get("level")
+		if lv != null:
+			lvl = int(lv)
+		var tv: Variant = enemy.get("loot_tier")
+		if tv != null:
+			tier = int(tv)
+		else:
+			tier = _loot.level_to_loot_tier(lvl)
+	var corpse_id := StringName("corpse_%d" % enemy.get_instance_id())
+	_loot.register_corpse_with_drops(corpse_id, enemy.global_position, tier)
+	_spawn_corpse_marker(corpse_id, enemy.global_position, "Corpse: %s" % str(enemy.name))
+
+
+func _handle_character_death(character_id: StringName, world_position: Vector2) -> void:
+	var data: Resource = _registry.get_character(character_id) if _registry != null else null
+	if data == null:
+		return
+	var corpse_id := StringName("corpse_%s_%d" % [String(character_id), Time.get_ticks_msec()])
+	if _loot != null:
+		_loot.register_corpse_from_character(character_id, corpse_id, world_position)
+	_spawn_corpse_marker(corpse_id, world_position, "Corpse: %s" % str(data.user_name))
+	if _progression != null and _progression.has_method("apply_death_penalty"):
+		_progression.apply_death_penalty(character_id)
+	data.is_logged_in = false
+	data.current_health = maxf(1.0, float(data.current_health))
+	if _stats != null:
+		_stats.invalidate(character_id)
+	_sync_world_actors()
+	_refresh_login_button_states()
+	_refresh_panel_b_auxiliary()
+	_append_command_feed("[death] %s died. Corpse remains; log in again to continue with death penalty." % String(character_id), character_id)
+
+
+func _spawn_corpse_marker(corpse_id: StringName, world_position: Vector2, label: String) -> void:
+	if _actors_root == null:
+		return
+	var node := Node2D.new()
+	node.name = String(corpse_id)
+	node.set_meta("corpse_id", corpse_id)
+	node.set_meta("label", label)
+	node.global_position = world_position
+	node.add_to_group(&"loot_corpses")
+	var glyph := Polygon2D.new()
+	glyph.polygon = PackedVector2Array([Vector2(-12, -8), Vector2(12, -8), Vector2(12, 8), Vector2(-12, 8)])
+	glyph.color = Color(0.45, 0.34, 0.18, 1.0)
+	node.add_child(glyph)
+	_actors_root.add_child(node)
+	_corpse_node_by_id[corpse_id] = node
+
+
+func _prune_corpse_markers() -> void:
+	if _corpse == null or _corpse_node_by_id.is_empty():
+		return
+	var live: PackedStringArray = _corpse.list_corpse_ids()
+	var remove_ids: Array = []
+	for key in _corpse_node_by_id.keys():
+		var cid: StringName = key as StringName
+		if live.has(String(cid)):
+			continue
+		var n: Node = _corpse_node_by_id[key] as Node
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+		remove_ids.append(key)
+	for rid in remove_ids:
+		_corpse_node_by_id.erase(rid)
 
 
 func bind_progression_system(progression: Node, balance: Resource) -> void:
@@ -3414,15 +3581,19 @@ func _on_inventory_slot_context_menu_requested(kind: String, payload: Dictionary
 			var cell: Variant = _inventory.get_cell(_focus_character_id, idx)
 			if cell is Dictionary:
 				var d: Dictionary = cell as Dictionary
-				iid = String(d.get("item_id", ""))
+				iid = String(_cell_item_id(d))
 				qty = int(d.get("quantity", 1))
-		sel = {"source": "bag", "index": idx, "item_id": iid, "quantity": qty}
+				sel = {"source": "bag", "index": idx, "item_id": iid, "instance_id": String(d.get("instance_id", "")), "quantity": qty}
+		if sel.is_empty():
+			sel = {"source": "bag", "index": idx, "item_id": iid, "instance_id": "", "quantity": qty}
 	elif kind == "equip":
 		var slot_s: String = String(payload.get("equip_slot", ""))
 		var eiid: String = ""
+		var ekey: String = ""
 		if _equipment != null and _focus_character_id != &"" and not slot_s.is_empty():
 			eiid = String(_equipment.get_equipped_item(_focus_character_id, StringName(slot_s)))
-		sel = {"source": "equip", "equip_slot": slot_s, "item_id": eiid, "quantity": 1}
+			ekey = String(_equipment.call("get_equipped_key", _focus_character_id, StringName(slot_s))) if _equipment.has_method("get_equipped_key") else eiid
+		sel = {"source": "equip", "equip_slot": slot_s, "item_id": eiid, "instance_id": ekey, "quantity": 1}
 	else:
 		return
 	if _inventory_panel != null and _inventory_panel.has_method(&"set_programmatic_selection"):
@@ -3497,10 +3668,7 @@ func _show_selection_context_menu_at(global_position: Vector2) -> void:
 			var casting_a: bool = WeaponItemUtils.is_casting_weapon(
 				WeaponItemUtils.main_hand_definition(_focus_character_id, _equipment, _catalog),
 			)
-			var cast_on_actor: bool = casting_a and (
-				mode_a == "casting_support"
-				or (mode_a == "casting" and _selection_world_id != _focus_character_id)
-			)
+			var cast_on_actor: bool = casting_a and mode_a == "casting_support"
 			if cast_on_actor:
 				var can_cast_a: bool = mode_a == "casting_support" or mode_a == "casting"
 				var cast_busy_a: bool = _spell_cast_busy and _spell_cast_attacker_id == _focus_character_id
@@ -3517,6 +3685,9 @@ func _show_selection_context_menu_at(global_position: Vector2) -> void:
 				var med_lbl: String = "Stop meditation" if bool(wa.is_meditating) else "Meditate"
 				pm.add_item(med_lbl, _SEL_CTX_MEDITATE)
 				added += 1
+		if _selection_world_kind == "corpse":
+			pm.add_item("Loot corpse", _SEL_CTX_LOOT)
+			added += 1
 	if added <= 0:
 		return
 	pm.position = Vector2i(global_position)
@@ -3536,6 +3707,50 @@ func _on_selection_actions_id_pressed(menu_id: int) -> void:
 			_on_bc_attack_pressed()
 		_SEL_CTX_MEDITATE:
 			_on_bc_meditate_pressed()
+		_SEL_CTX_LOOT:
+			_open_corpse_loot_dialog(_selection_world_id)
+
+
+func _open_corpse_loot_dialog(corpse_id: StringName) -> void:
+	if _corpse == null or _focus_character_id == &"":
+		return
+	var dlg := AcceptDialog.new()
+	dlg.title = "Corpse Loot"
+	var root := VBoxContainer.new()
+	root.custom_minimum_size = Vector2(420, 260)
+	var list := ItemList.new()
+	list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var bag: Array = _corpse.get_corpse_bag(corpse_id)
+	for i in range(bag.size()):
+		var cell: Variant = bag[i]
+		if cell == null:
+			continue
+		var d: Dictionary = cell as Dictionary
+		var desc: Dictionary = _cell_description(d)
+		var label: String = str(desc.get("display_name", String(_cell_item_id(d))))
+		var qty: int = int(d.get("quantity", 1))
+		var row: int = list.add_item("%02d  %s x%d" % [i, label, qty])
+		list.set_item_metadata(row, i)
+	root.add_child(list)
+	var btn := Button.new()
+	btn.text = "Loot selected"
+	btn.pressed.connect(func() -> void:
+		var sel: PackedInt32Array = list.get_selected_items()
+		if sel.is_empty():
+			return
+		var slot: int = int(list.get_item_metadata(sel[0]))
+		var err: Error = _corpse.loot_bag_slot_to_character(_focus_character_id, corpse_id, slot)
+		if err == OK:
+			_append_command_feed("[loot] Took item from corpse.", _focus_character_id)
+			dlg.queue_free()
+			_refresh_selection_portrait()
+		else:
+			_append_command_feed("[loot] Could not loot corpse (range/bag/full).", _focus_character_id)
+	)
+	root.add_child(btn)
+	dlg.add_child(root)
+	add_child(dlg)
+	dlg.popup_centered()
 
 
 func _on_bb_read_scroll_pressed() -> void:
@@ -3557,7 +3772,7 @@ func try_read_scroll_from_bag(bag_index: int) -> void:
 	if cell == null or not (cell is Dictionary):
 		return
 	var d: Dictionary = cell as Dictionary
-	var raw_id: StringName = d.get("item_id", &"") as StringName
+	var raw_id: StringName = _cell_item_id(d)
 	var def: Resource = _catalog.get_definition(raw_id)
 	if def == null:
 		return
@@ -4052,6 +4267,18 @@ func _pick_world_at_world_pos(world_p: Vector2) -> void:
 			best_node = e2d
 			best_kind = "enemy"
 			best_id = StringName(str(e2d.get_instance_id()))
+	for co in get_tree().get_nodes_in_group(&"loot_corpses"):
+		if not (co is Node2D):
+			continue
+		var c2d: Node2D = co as Node2D
+		if not _world_viewport.is_ancestor_of(c2d):
+			continue
+		var d2c: float = world_p.distance_squared_to(c2d.global_position)
+		if d2c < best_d2:
+			best_d2 = d2c
+			best_node = c2d
+			best_kind = "corpse"
+			best_id = c2d.get_meta("corpse_id", &"") as StringName
 	if best_node == null or best_d2 > pick_r2:
 		_selection_world_kind = "none"
 		_selection_world_id = &""
@@ -4177,6 +4404,19 @@ func _refresh_selection_portrait() -> void:
 				_bb_subtitle.text = String(_selection_world_node.name)
 			_bb_portrait.texture = null
 			_bb_fallback.color = Color(0.62, 0.22, 0.22, 1.0)
+			_bb_fallback.visible = true
+			_sync_ui_attack_to_selection()
+			_refresh_panel_b_auxiliary()
+			return
+		if _selection_world_kind == "corpse":
+			_bb_title.text = "Corpse"
+			var label: String = str(_selection_world_node.get_meta("label", "Corpse"))
+			var count: int = 0
+			if _corpse != null:
+				count = _corpse.get_corpse_bag(_selection_world_id).size()
+			_bb_subtitle.text = "%s · %d slot(s)" % [label, count]
+			_bb_portrait.texture = null
+			_bb_fallback.color = Color(0.45, 0.34, 0.18, 1.0)
 			_bb_fallback.visible = true
 			_sync_ui_attack_to_selection()
 			_refresh_panel_b_auxiliary()
@@ -4365,7 +4605,7 @@ func _sync_ui_attack_to_selection() -> void:
 	if _selection_world_kind == "enemy":
 		ok = mode in ["melee", "missile", "casting"]
 	elif _selection_world_kind == "actor":
-		ok = casting_weapon and (mode == "casting_support" or mode == "casting")
+		ok = casting_weapon and mode == "casting_support"
 	if not ok:
 		_set_ui_attack_active(false)
 		return
@@ -4399,7 +4639,7 @@ func _tick_ui_directed_attack(_delta: float) -> void:
 		else:
 			actor.call("set_hunt_navigation_active", false)
 	var now: int = Time.get_ticks_msec()
-	if now - _ui_attack_last_strike_ms < 650:
+	if now - _ui_attack_last_strike_ms < _attack_cooldown_ms(_focus_character_id):
 		return
 	var outcome: Dictionary = _perform_melee_against_node(_focus_character_id, enemy, true, "[attack]")
 	if bool(outcome.get("struck", false)):
@@ -4500,17 +4740,14 @@ func _refresh_bc_action_row() -> void:
 	var cast_on_actor_ok: bool = (
 		actor_ok
 		and casting_weapon
-		and (
-			mode == "casting_support"
-			or (mode == "casting" and _selection_world_id != _focus_character_id)
-		)
+		and mode == "casting_support"
 	)
 	var show_primary: bool = show_on_enemy or cast_on_actor_ok
 	var can_strike: bool = false
 	if show_on_enemy:
 		can_strike = mode in ["melee", "missile", "casting"]
 	elif cast_on_actor_ok:
-		can_strike = mode == "casting_support" or mode == "casting"
+		can_strike = mode == "casting_support"
 	_bc_btn_attack.visible = show_primary
 	var busy_cast: bool = _spell_cast_busy and (_spell_cast_attacker_id == _focus_character_id)
 	_bc_btn_attack.disabled = (show_primary and not can_strike) or busy_cast
@@ -4601,10 +4838,7 @@ func _on_bc_attack_pressed() -> void:
 			_append_command_feed("[ui] Choose a combat bolt to use on enemies.")
 			return
 		if is_actor:
-			if mode not in ["casting", "casting_support"]:
-				return
-			if mode == "casting" and _selection_world_id == _focus_character_id:
-				_append_command_feed("[ui] Pick another character as the bolt target.")
+			if mode != "casting_support":
 				return
 		_try_start_player_spell_cast()
 		return
@@ -4641,7 +4875,7 @@ func _on_bb_equip_pressed() -> void:
 		if cell == null:
 			return
 		var d: Dictionary = cell as Dictionary
-		var iid: StringName = d.get("item_id", &"") as StringName
+		var iid: StringName = _cell_item_id(d)
 		var def: Resource = _catalog.get_definition(iid)
 		if def == null:
 			return
@@ -4689,6 +4923,15 @@ func _build_inspect_text() -> String:
 				lines.append("Level: %d  XP: %d  Logged in: %s" % [int(dres.level), int(dres.total_experience), str(dres.is_logged_in)])
 				if _stats != null and _equipment != null:
 					var st: Dictionary = _stats.get_effective_stats(_selection_world_id, dres, _equipment)
+					lines.append("HP: %.0f / %.0f  STA: %.0f / %.0f  MP: %.0f / %.0f" % [
+						float(dres.current_health),
+						float(st.get("max_health", 0.0)),
+						float(dres.current_stamina),
+						float(st.get("max_stamina", 0.0)),
+						float(dres.current_mana),
+						float(st.get("max_mana", 0.0)),
+					])
+					lines.append("Death penalty: %.1f%%" % (float(st.get("death_penalty_percent", 0.0)) * 100.0))
 					lines.append("Max HP: %.0f  Max STA: %.0f  Max MP: %.0f" % [
 						float(st.get("max_health", 0.0)),
 						float(st.get("max_stamina", 0.0)),
@@ -4701,11 +4944,29 @@ func _build_inspect_text() -> String:
 			var cur: float = _node_get_float(_selection_world_node, &"current_health", 0.0)
 			var mx: float = _node_get_float(_selection_world_node, &"max_health", 1.0)
 			var xp: int = _node_get_int(_selection_world_node, &"xp_reward", 0)
+			var lvl: int = _node_get_int(_selection_world_node, &"level", 1)
+			var tier: int = _node_get_int(_selection_world_node, &"loot_tier", 1)
 			var atk: float = _node_get_float(_selection_world_node, &"attack_rating", 0.0)
 			var defn: float = _node_get_float(_selection_world_node, &"defense_rating", 0.0)
+			var attrs: Dictionary = _selection_world_node.get("attributes") as Dictionary
+			lines.append("Level: %d  Loot tier: %d" % [lvl, tier])
 			lines.append("HP: %.0f / %.0f" % [cur, mx])
+			lines.append("Attributes: %s" % str(attrs))
 			lines.append("Attack / Defense: %.1f / %.1f" % [atk, defn])
 			lines.append("XP reward: %d" % xp)
+	elif _selection_portrait_source == "world" and _selection_world_kind == "corpse" and _selection_world_node != null:
+		lines.append("[b]Corpse[/b]")
+		lines.append("Id: %s" % String(_selection_world_id))
+		if _corpse != null:
+			var bag: Array = _corpse.get_corpse_bag(_selection_world_id)
+			lines.append("Loot slots: %d" % bag.size())
+			for i in range(bag.size()):
+				var cell: Variant = bag[i]
+				if cell == null:
+					continue
+				var d: Dictionary = cell as Dictionary
+				var desc: Dictionary = _cell_description(d)
+				lines.append("%02d  %s x%d" % [i, str(desc.get("display_name", String(_cell_item_id(d)))), int(d.get("quantity", 1))])
 	elif _selection_portrait_source == "inventory" and not _selection_inventory_snapshot.is_empty():
 		lines.append("[b]Inventory selection[/b]")
 		var src2: String = String(_selection_inventory_snapshot.get("source", ""))
@@ -4715,9 +4976,40 @@ func _build_inspect_text() -> String:
 		elif src2 == "equip":
 			lines.append("Slot: %s" % String(_selection_inventory_snapshot.get("equip_slot", "")))
 		var ii: String = String(_selection_inventory_snapshot.get("item_id", ""))
+		var inst: String = String(_selection_inventory_snapshot.get("instance_id", ""))
 		lines.append("Item id: %s" % ii)
+		if not inst.is_empty():
+			lines.append("Instance: %s" % inst)
 		lines.append("Quantity: %d" % int(_selection_inventory_snapshot.get("quantity", 0)))
-		if not ii.is_empty() and _catalog != null and _catalog.has_method("get_definition"):
+		var desc: Dictionary = {}
+		if src2 == "bag" and _inventory != null:
+			var bi: int = int(_selection_inventory_snapshot.get("index", -1))
+			var cellv: Variant = _inventory.get_cell(_focus_character_id, bi)
+			if cellv is Dictionary:
+				desc = _cell_description(cellv as Dictionary)
+		elif src2 == "equip" and _equipment != null:
+			var eslot_desc: StringName = StringName(String(_selection_inventory_snapshot.get("equip_slot", "")))
+			if _equipment.has_method("get_equipped_details"):
+				desc = _equipment.call("get_equipped_details", _focus_character_id, eslot_desc) as Dictionary
+		if not desc.is_empty():
+			lines.append("Display name: %s" % str(desc.get("display_name", ii)))
+			lines.append("Tier: %d  Magic: %s" % [int(desc.get("loot_tier", 1)), str(desc.get("magic", false))])
+			lines.append("Weight: %.2f  Value: %d" % [float(desc.get("weight", 0.0)), int(desc.get("value", 0))])
+			lines.append("Equip slot: %s  Type: %s/%s" % [str(desc.get("equip_slot", "")), str(desc.get("category", "")), str(desc.get("item_type", ""))])
+			if int(desc.get("damage_max", 0)) > 0:
+				lines.append("Damage: %d-%d" % [int(desc.get("damage_min", 0)), int(desc.get("damage_max", 0))])
+			if float(desc.get("armor_level", 0.0)) > 0.0:
+				lines.append("Armor level: %.1f  Ratings: %s" % [float(desc.get("armor_level", 0.0)), str(desc.get("armor_ratings", {}))])
+			var req: Dictionary = desc.get("requirements", {}) as Dictionary
+			if not req.is_empty():
+				lines.append("Requires: %s >= %d" % [str(req.get("skill", "")), int(req.get("rank", 0))])
+			var mods: Dictionary = desc.get("modifiers", {}) as Dictionary
+			if not mods.is_empty():
+				lines.append("Modifiers: %s" % str(mods))
+			var vmods: Array = desc.get("value_modifiers", []) as Array
+			if not vmods.is_empty():
+				lines.append("Value rolls: %s" % str(vmods))
+		elif not ii.is_empty() and _catalog != null and _catalog.has_method("get_definition"):
 			var def2: Resource = _catalog.get_definition(StringName(ii))
 			if def2 != null:
 				lines.append("Display name: %s" % str(def2.display_name))
