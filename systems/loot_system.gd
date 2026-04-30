@@ -43,14 +43,40 @@ func roll_drops(context_id: StringName, table_id: StringName) -> Array:
 	var count: int = 1 + (1 if randf() < minf(0.75, float(tier) * 0.035) else 0)
 	var drops: Array = []
 	for i in range(count):
-		var raw_item: Variant = pool[randi_range(0, pool.size() - 1)]
-		var item_id: StringName = raw_item as StringName if raw_item is StringName else StringName(str(raw_item))
+		var item_id: StringName = _pick_item_from_pool(pool)
 		if _item_instances != null and _item_instances.has_method("create_cell"):
 			drops.append(_item_instances.call("create_cell", item_id, 1, tier, String(context_id)))
 		else:
 			drops.append({"item_id": item_id, "quantity": 1})
 	loot_generated.emit(context_id, drops)
 	return drops
+
+
+func _pick_item_from_pool(pool: Array) -> StringName:
+	var total_weight: int = 0
+	for entry in pool:
+		if entry is Dictionary:
+			total_weight += maxi(0, int((entry as Dictionary).get("weight", 1)))
+		else:
+			total_weight += 1
+	if total_weight <= 0:
+		return &"scrap"
+	var roll: int = randi_range(1, total_weight)
+	var cursor: int = 0
+	for entry2 in pool:
+		var item_id: StringName
+		var weight: int = 1
+		if entry2 is Dictionary:
+			var d: Dictionary = entry2 as Dictionary
+			var raw: Variant = d.get("item_id", &"scrap")
+			item_id = raw as StringName if raw is StringName else StringName(str(raw))
+			weight = maxi(0, int(d.get("weight", 1)))
+		else:
+			item_id = entry2 as StringName if entry2 is StringName else StringName(str(entry2))
+		cursor += weight
+		if roll <= cursor:
+			return item_id
+	return &"scrap"
 
 
 func drop_item_to_ground(item_id: StringName, quantity: int, world_position: Vector2) -> void:

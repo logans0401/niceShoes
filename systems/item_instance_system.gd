@@ -4,6 +4,8 @@ extends Node
 const ItemInstanceScr := preload("res://data/item_instance.gd")
 const _Eq := preload("res://scripts/equipment_schema.gd")
 const _Sch := preload("res://scripts/character_schema.gd")
+const WEARABLE_MAGIC_CHANCE: float = 0.04
+const ACCESSORY_MAGIC_CHANCE: float = 0.16
 
 var _catalog: Node = null
 var _next_id: int = 1
@@ -205,7 +207,8 @@ func _add_value_modifier(inst: Resource, label: String, pct: float) -> void:
 
 
 func _roll_magic(inst: Resource, _source: String) -> void:
-	if inst.category != "wearable" or randf() >= 0.04:
+	var magic_chance: float = ACCESSORY_MAGIC_CHANCE if inst.item_type == "accessory" else WEARABLE_MAGIC_CHANCE
+	if inst.category != "wearable" or randf() >= magic_chance:
 		return
 	inst.magic = true
 	inst.modifiers["magic_spells"] = [MagicRules.spell_display_name(_random_magic_spell())]

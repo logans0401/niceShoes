@@ -169,7 +169,38 @@ func _register_bootstrap_items() -> void:
 	orb.sell_price = 20
 	register_item(orb)
 
+	_register_accessories()
+
 	_register_spell_scrolls()
+
+
+func _register_accessories() -> void:
+	_register_accessory(&"bronze_bracelet", "Bronze Bracelet", _Eq.SLOT_HANDS, 0.4, 18, 6)
+	_register_accessory(&"copper_ring", "Copper Ring", _Eq.SLOT_RING_1, 0.1, 16, 5)
+	_register_accessory(&"silver_necklace", "Silver Necklace", _Eq.SLOT_NECK, 0.2, 45, 15)
+	_register_accessory(&"gold_ring", "Gold Ring", _Eq.SLOT_RING_1, 0.1, 80, 28)
+	_register_accessory(&"onyx_ring", "Onyx Ring", _Eq.SLOT_RING_1, 0.1, 110, 36)
+
+
+func _register_accessory(
+	item_id: StringName,
+	display_name: String,
+	equip_slot: String,
+	weight: float,
+	buy_price: int,
+	sell_price: int,
+) -> void:
+	var accessory: Resource = _ItemDef.new()
+	accessory.item_id = String(item_id)
+	accessory.display_name = display_name
+	accessory.category = "wearable"
+	accessory.item_type = "accessory"
+	accessory.weight = weight
+	accessory.max_stack = 1
+	accessory.equip_slot = equip_slot
+	accessory.buy_price = buy_price
+	accessory.sell_price = sell_price
+	register_item(accessory)
 
 
 func _register_spell_scrolls() -> void:

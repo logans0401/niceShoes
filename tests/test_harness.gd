@@ -17,6 +17,7 @@ const TradeScr := preload("res://systems/trade_system.gd")
 const GroundScr := preload("res://systems/ground_items_system.gd")
 const CorpseScr := preload("res://systems/corpse_loot_system.gd")
 const LootScr := preload("res://systems/loot_system.gd")
+const LootTableConfigScr := preload("res://data/loot_table_config.gd")
 const StatsSystemScr := preload("res://systems/stats_system.gd")
 const CombatSystemScr := preload("res://systems/combat_system.gd")
 const CombatBalanceScr := preload("res://data/combat_balance_config.gd")
@@ -120,6 +121,9 @@ func _run_all() -> int:
 		return 1
 	if not _test_item_instances_and_equipment_details():
 		push_error("test_harness: item instances/equipment failed")
+		return 1
+	if not _test_accessory_generation_data():
+		push_error("test_harness: accessory generation data failed")
 		return 1
 	if not _test_death_penalty_fades_with_full_xp():
 		push_error("test_harness: death penalty fade failed")
@@ -1043,6 +1047,52 @@ func _test_item_instances_and_equipment_details() -> bool:
 	_free_node(cat)
 	_free_node(reg)
 	return ok
+
+
+func _test_accessory_generation_data() -> bool:
+	var cat = CatScr.new()
+	cat.ensure_items()
+	var accessory_ids: Array[StringName] = [
+		&"bronze_bracelet",
+		&"copper_ring",
+		&"silver_necklace",
+		&"gold_ring",
+		&"onyx_ring",
+	]
+	for item_id in accessory_ids:
+		var def: Resource = cat.get_definition(item_id)
+		if def == null:
+			_free_node(cat)
+			return false
+		if str(def.category) != "wearable" or str(def.item_type) != "accessory":
+			_free_node(cat)
+			return false
+		if not str(def.display_name).contains(" "):
+			_free_node(cat)
+			return false
+	var loot_table: Resource = LootTableConfigScr.new()
+	var pool: Array = loot_table.get_pool_for_tier(4)
+	var armor_weight: int = _loot_pool_weight_for_item(pool, &"leather_cap") + _loot_pool_weight_for_item(pool, &"wood_shield")
+	var accessory_weight: int = _loot_pool_weight_for_item(pool, &"bronze_bracelet") + _loot_pool_weight_for_item(pool, &"copper_ring")
+	var ok: bool = (
+		armor_weight > accessory_weight
+		and is_equal_approx(ItemInstanceScr.ACCESSORY_MAGIC_CHANCE, 0.16)
+		and is_equal_approx(ItemInstanceScr.WEARABLE_MAGIC_CHANCE, 0.04)
+	)
+	_free_node(cat)
+	return ok
+
+
+func _loot_pool_weight_for_item(pool: Array, item_id: StringName) -> int:
+	var total: int = 0
+	for entry in pool:
+		if entry is Dictionary:
+			var d: Dictionary = entry as Dictionary
+			if String(d.get("item_id", "")) == String(item_id):
+				total += int(d.get("weight", 1))
+		elif String(entry) == String(item_id):
+			total += 1
+	return total
 
 
 func _test_death_penalty_fades_with_full_xp() -> bool:
