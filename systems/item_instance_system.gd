@@ -6,6 +6,9 @@ const _Eq := preload("res://scripts/equipment_schema.gd")
 const _Sch := preload("res://scripts/character_schema.gd")
 const WEARABLE_MAGIC_CHANCE: float = 0.04
 const ACCESSORY_MAGIC_CHANCE: float = 0.16
+const WEARABLE_MAGIC_SPELL_CHANCES: Array[float] = [0.04, 0.10, 0.14, 0.18]
+const ACCESSORY_MAGIC_SPELL_CHANCES: Array[float] = [0.16, 0.21, 0.25, 0.35]
+const MAX_MAGIC_SPELLS_PER_ITEM: int = 4
 
 var _catalog: Node = null
 var _next_id: int = 1
@@ -207,11 +210,16 @@ func _add_value_modifier(inst: Resource, label: String, pct: float) -> void:
 
 
 func _roll_magic(inst: Resource, _source: String) -> void:
-	var magic_chance: float = ACCESSORY_MAGIC_CHANCE if inst.item_type == "accessory" else WEARABLE_MAGIC_CHANCE
-	if inst.category != "wearable" or randf() >= magic_chance:
+	if inst.category != "wearable":
+		return
+	var spells: Array[StringName] = _roll_magic_spells_for_item(inst)
+	if spells.is_empty():
 		return
 	inst.magic = true
-	inst.modifiers["magic_spells"] = [MagicRules.spell_display_name(_random_magic_spell())]
+	var spell_names: Array[String] = []
+	for spell_id in spells:
+		spell_names.append(MagicRules.spell_display_name(spell_id))
+	inst.modifiers["magic_spells"] = spell_names
 	inst.modifiers["arcane_connection_required"] = randi_range(10, 60)
 	var roll: float = randf()
 	if inst.weapon_kind == "casting":
@@ -226,6 +234,28 @@ func _roll_magic(inst: Resource, _source: String) -> void:
 		inst.modifiers["melee_defense_multiplier"] = randf_range(1.02, 1.08)
 
 
+func _roll_magic_spells_for_item(inst: Resource) -> Array[StringName]:
+	var chances: Array[float] = ACCESSORY_MAGIC_SPELL_CHANCES if inst.item_type == "accessory" else WEARABLE_MAGIC_SPELL_CHANCES
+	var rolled: Array[StringName] = []
+	for chance in chances:
+		if rolled.size() >= MAX_MAGIC_SPELLS_PER_ITEM:
+			break
+		if randf() >= chance:
+			break
+		rolled.append(_random_magic_spell_excluding(rolled))
+	return rolled
+
+
 func _random_magic_spell() -> StringName:
+	return _random_magic_spell_excluding([])
+
+
+func _random_magic_spell_excluding(excluded: Array[StringName]) -> StringName:
 	var spells: Array[StringName] = MagicRules.all_item_magic_spell_ids()
-	return spells[randi_range(0, spells.size() - 1)]
+	var candidates: Array[StringName] = []
+	for spell_id in spells:
+		if not excluded.has(spell_id):
+			candidates.append(spell_id)
+	if candidates.is_empty():
+		candidates = spells
+	return candidates[randi_range(0, candidates.size() - 1)]

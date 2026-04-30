@@ -125,6 +125,9 @@ func _run_all() -> int:
 	if not _test_accessory_generation_data():
 		push_error("test_harness: accessory generation data failed")
 		return 1
+	if not _test_item_magic_spell_chance_ladders():
+		push_error("test_harness: item magic spell chance ladders failed")
+		return 1
 	if not _test_death_penalty_fades_with_full_xp():
 		push_error("test_harness: death penalty fade failed")
 		return 1
@@ -1081,6 +1084,24 @@ func _test_accessory_generation_data() -> bool:
 	)
 	_free_node(cat)
 	return ok
+
+
+func _test_item_magic_spell_chance_ladders() -> bool:
+	var wearable_expected: Array[float] = [0.04, 0.10, 0.14, 0.18]
+	var accessory_expected: Array[float] = [0.16, 0.21, 0.25, 0.35]
+	if ItemInstanceScr.WEARABLE_MAGIC_SPELL_CHANCES.size() != ItemInstanceScr.MAX_MAGIC_SPELLS_PER_ITEM:
+		return false
+	if ItemInstanceScr.ACCESSORY_MAGIC_SPELL_CHANCES.size() != ItemInstanceScr.MAX_MAGIC_SPELLS_PER_ITEM:
+		return false
+	for i in range(ItemInstanceScr.MAX_MAGIC_SPELLS_PER_ITEM):
+		if not is_equal_approx(ItemInstanceScr.WEARABLE_MAGIC_SPELL_CHANCES[i], wearable_expected[i]):
+			return false
+		if not is_equal_approx(ItemInstanceScr.ACCESSORY_MAGIC_SPELL_CHANCES[i], accessory_expected[i]):
+			return false
+	return (
+		is_equal_approx(ItemInstanceScr.WEARABLE_MAGIC_CHANCE, ItemInstanceScr.WEARABLE_MAGIC_SPELL_CHANCES[0])
+		and is_equal_approx(ItemInstanceScr.ACCESSORY_MAGIC_CHANCE, ItemInstanceScr.ACCESSORY_MAGIC_SPELL_CHANCES[0])
+	)
 
 
 func _loot_pool_weight_for_item(pool: Array, item_id: StringName) -> int:
