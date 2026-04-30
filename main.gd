@@ -66,10 +66,11 @@ func _seed_demo_content() -> void:
 	merchant.set_merchant_stock(
 		&"default_merchant",
 		[
-			{"item_id": "scrap", "quantity": 80},
-			{"item_id": "iron_sword", "quantity": 3},
-			{"item_id": "wood_shield", "quantity": 4},
-			{"item_id": "leather_cap", "quantity": 6},
+			{"item_id": "scrap", "quantity": 999},
+			{"item_id": "iron_sword", "quantity": 999},
+			{"item_id": "wood_shield", "quantity": 999},
+			{"item_id": "leather_cap", "quantity": 999},
+			{"item_id": "scroll_all_spells", "quantity": 999},
 		],
 	)
 

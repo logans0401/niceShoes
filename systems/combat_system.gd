@@ -87,11 +87,18 @@ func _apply_area_mitigation(
 	var armor_level: float = float(area_stats.get("armor_level", 0.0))
 	var ratings: Dictionary = area_stats.get("damage_ratings", {}) as Dictionary
 	var rating: float = float(ratings.get(damage_type, ratings.get(str(damage_type), 0.0)))
+	var protections: Dictionary = defender_stats.get("damage_type_protection_percent", {}) as Dictionary
+	var protection_percent: float = clampf(
+		float(protections.get(damage_type, protections.get(str(damage_type), 0.0))),
+		0.0,
+		0.95,
+	)
 	var mitigation: float = (
 		armor_level * _combat_balance.armor_level_mitigation_scale
 		+ rating * _combat_balance.armor_rating_mitigation_scale
 	)
 	var dmg: float = raw_damage - mitigation
+	dmg *= 1.0 - protection_percent
 	if raw_damage > 0.0:
 		dmg = maxf(_combat_balance.minimum_damage_after_mitigation, dmg)
-	return {"damage": dmg, "mitigation": mitigation}
+	return {"damage": dmg, "mitigation": mitigation, "protection_percent": protection_percent}

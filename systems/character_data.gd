@@ -29,6 +29,8 @@ const _Schema := preload("res://scripts/character_schema.gd")
 ## Temporary bonuses (buffs). Added to base attribute/skill for display and checks; tune serialization via `version`.
 @export var transient_attribute_bonus: Dictionary = {}
 @export var transient_skill_bonus: Dictionary = {}
+@export var transient_armor_bonus: float = 0.0
+@export var transient_damage_protection_percent: Dictionary = {}
 ## Spell ids (string keys) learned from scrolls / training.
 @export var known_spells: PackedStringArray = PackedStringArray()
 
@@ -103,7 +105,7 @@ func duplicate_data() -> Resource:
 
 func to_dictionary() -> Dictionary:
 	return {
-		"version": 7,
+		"version": 8,
 		"character_id": character_id,
 		"user_name": user_name,
 		"is_logged_in": is_logged_in,
@@ -119,6 +121,8 @@ func to_dictionary() -> Dictionary:
 		"skill_xp_purchases": skill_xp_purchases.duplicate(true),
 		"transient_attribute_bonus": transient_attribute_bonus.duplicate(true),
 		"transient_skill_bonus": transient_skill_bonus.duplicate(true),
+		"transient_armor_bonus": transient_armor_bonus,
+		"transient_damage_protection_percent": transient_damage_protection_percent.duplicate(true),
 		"known_spells": Array(known_spells),
 		"current_health": current_health,
 		"current_stamina": current_stamina,
@@ -167,6 +171,9 @@ static func from_dictionary(data: Dictionary) -> Resource:
 	if ver >= 4:
 		cd.transient_attribute_bonus = (data.get("transient_attribute_bonus", {}) as Dictionary).duplicate(true)
 		cd.transient_skill_bonus = (data.get("transient_skill_bonus", {}) as Dictionary).duplicate(true)
+	if ver >= 8:
+		cd.transient_armor_bonus = float(data.get("transient_armor_bonus", 0.0))
+		cd.transient_damage_protection_percent = (data.get("transient_damage_protection_percent", {}) as Dictionary).duplicate(true)
 	if ver >= 5:
 		cd.known_spells = PackedStringArray(data.get("known_spells", []) as Array)
 	cd.current_health = float(data.get("current_health", 1.0))

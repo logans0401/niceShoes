@@ -120,12 +120,15 @@ func _compute(data: Resource, equipment: Node, character_id: StringName) -> Dict
 	var melee_def_mod: float = float(mods.get(_Sch.SKILL_MELEE_DEFENSE, 0.0))
 	var magic_def_mod: float = float(mods.get(_Sch.SKILL_MAGIC_DEFENSE, 0.0))
 	var missile_def_mod: float = float(mods.get(_Sch.SKILL_MISSILE_DEFENSE, 0.0))
+	var arcane_mod: float = float(mods.get(_Sch.SKILL_ARCANE_CONNECTION, 0.0))
 	var equip_effects: Dictionary = _equipment_effects(equipment, character_id)
 	melee_mod *= float(equip_effects.get("melee_combat_multiplier", 1.0))
 	missile_mod *= float(equip_effects.get("missile_combat_multiplier", 1.0))
 	melee_def_mod *= float(equip_effects.get("melee_defense_multiplier", 1.0))
 	magic_def_mod *= float(equip_effects.get("magic_defense_multiplier", 1.0))
 	missile_def_mod *= float(equip_effects.get("missile_defense_multiplier", 1.0))
+	arcane_mod *= float(equip_effects.get("arcane_connection_multiplier", 1.0))
+	mods[_Sch.SKILL_ARCANE_CONNECTION] = arcane_mod
 
 	var burden_capacity: float = cfg.get_burden_capacity(attrs)
 	var burden_ratio: float = inv_cfg.get_burden_ratio(float(data.laden_burden), burden_capacity)
@@ -196,11 +199,28 @@ func _compute(data: Resource, equipment: Node, character_id: StringName) -> Dict
 		"stamina_regen_multiplier": float(pen.get("stamina_regen_multiplier", 1.0)),
 		"death_penalty_percent": death_penalty,
 		"melee_attack_interval_sec": _melee_attack_interval(reflex, ability, equip_effects, pen),
-		"armor_by_area": equip_effects.get("armor_by_area", {}),
-		"arcane_conversion_multiplier": float(equip_effects.get("arcane_conversion_multiplier", 1.0)),
+		"armor_by_area": _armor_by_area_with_transient_bonus(equip_effects.get("armor_by_area", {}) as Dictionary, data),
+		"damage_type_protection_percent": (data.transient_damage_protection_percent as Dictionary).duplicate(true),
+		"arcane_connection_multiplier": float(equip_effects.get("arcane_connection_multiplier", 1.0)),
 		"spell_extra_damage_percent": float(equip_effects.get("spell_extra_damage_percent", 0.0)),
+		"spell_extra_damage_type": int(equip_effects.get("spell_extra_damage_type", -1)),
 		"effective_attributes": penalized_attrs,
 	}
+	return out
+
+
+func _armor_by_area_with_transient_bonus(base_armor: Dictionary, data: Resource) -> Dictionary:
+	var out: Dictionary = base_armor.duplicate(true)
+	var bonus: float = float(data.transient_armor_bonus)
+	if bonus <= 0.0:
+		return out
+	for area in _CombatBalanceScr.BODY_AREAS:
+		var area_stats: Dictionary = out.get(area, out.get(String(area), {})) as Dictionary
+		area_stats = area_stats.duplicate(true)
+		area_stats["armor_level"] = float(area_stats.get("armor_level", 0.0)) + bonus
+		if not area_stats.has("damage_ratings"):
+			area_stats["damage_ratings"] = {}
+		out[area] = area_stats
 	return out
 
 
@@ -228,6 +248,8 @@ func _equipment_effects(equipment: Node, character_id: StringName) -> Dictionary
 		for mk in mods.keys():
 			var key: String = str(mk)
 			var val: float = float(mods[mk])
+			if key == "arcane_conversion_multiplier":
+				key = "arcane_connection_multiplier"
 			if key.ends_with("_multiplier"):
 				effects[key] = float(effects.get(key, 1.0)) * val
 			else:

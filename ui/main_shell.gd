@@ -24,6 +24,8 @@ const _SEL_CTX_READ_SCROLL := 4
 const _SEL_CTX_ATTACK_CAST := 5
 const _SEL_CTX_MEDITATE := 6
 const _SEL_CTX_LOOT := 7
+const _SEL_CTX_TRADE := 8
+const _DEFAULT_MERCHANT_ID := &"default_merchant"
 
 @onready var _world_viewport: SubViewport = %WorldViewport
 @onready var _world_viewport_container: SubViewportContainer = %WorldViewportContainer
@@ -78,7 +80,10 @@ const _SEL_CTX_LOOT := 7
 @onready var _bb_bar_mn: ProgressBar = %PanelBBBarMana
 @onready var _btn_bc_meditate: Button = %BtnBCMeditate
 @onready var _bc_btn_attack: Button = %BtnBCAttack
+@onready var _bc_btn_loot: Button = %BtnBCLoot
+@onready var _bc_btn_trade: Button = %BtnBCTrade
 @onready var _bc_btn_inspect: Button = %BtnBCInspect
+@onready var _btn_bd_spell_book: Button = %BtnBDSpellBook
 @onready var _lbl_bd_selected: Label = %LblBDSelectedSpell
 @onready var _spells_list_host: VBoxContainer = %SpellsListHost
 
@@ -135,6 +140,7 @@ var _actors_root: Node2D = null
 ## character_id -> CharacterBody2D (world presence)
 var _world_actor_by_id: Dictionary = {}
 var _corpse_node_by_id: Dictionary = {}
+var _merchant_node_by_id: Dictionary = {}
 var _creation_dialog: AcceptDialog = null
 var _creation_name_edit: LineEdit = null
 var _creation_points_label: Label = null
@@ -151,6 +157,7 @@ var _selection_actions_popup: PopupMenu = null
 var _rename_dialog: AcceptDialog = null
 var _rename_edit: LineEdit = null
 var _rename_target_id: StringName = &""
+var _loot_context_item_desc: Dictionary = {}
 ## Latest world pick (Panel A): "none" | "actor" | "enemy"
 var _selection_world_kind: String = "none"
 var _selection_world_id: StringName = &""
@@ -174,6 +181,7 @@ var _attack_no_target_not_before_ms: Dictionary = {}
 var _bd_spell_selection_by_character: Dictionary = {}
 var _inspect_dialog: AcceptDialog = null
 var _inspect_body: RichTextLabel = null
+var _spell_book_dialog: AcceptDialog = null
 
 
 func _ready() -> void:
@@ -197,8 +205,14 @@ func _ready() -> void:
 		_bb_btn_read_scroll.pressed.connect(_on_bb_read_scroll_pressed)
 	if _bc_btn_attack != null:
 		_bc_btn_attack.pressed.connect(_on_bc_attack_pressed)
+	if _bc_btn_loot != null:
+		_bc_btn_loot.pressed.connect(_on_bc_loot_pressed)
+	if _bc_btn_trade != null:
+		_bc_btn_trade.pressed.connect(_on_bc_trade_pressed)
 	if _bc_btn_inspect != null:
 		_bc_btn_inspect.pressed.connect(_on_bc_inspect_pressed)
+	if _btn_bd_spell_book != null:
+		_btn_bd_spell_book.pressed.connect(_open_spell_book_dialog)
 	if _btn_bc_meditate != null:
 		_btn_bc_meditate.pressed.connect(_on_bc_meditate_pressed)
 	set_process(true)
@@ -541,6 +555,7 @@ func bind_quest_system(system: QuestSystem) -> void:
 
 func bind_merchant_system(merchant: MerchantSystem) -> void:
 	_merchant = merchant
+	_spawn_default_merchant_marker()
 
 
 func bind_trade_system(trade: TradeSystem) -> void:
@@ -1328,6 +1343,10 @@ func _cell_description(cell: Dictionary) -> Dictionary:
 	if _item_instances != null and _item_instances.has_method("describe_cell"):
 		return _item_instances.call("describe_cell", cell) as Dictionary
 	var item_id: StringName = _cell_item_id(cell)
+	return _static_item_description(item_id)
+
+
+func _static_item_description(item_id: StringName) -> Dictionary:
 	if _catalog == null or item_id == &"":
 		return {}
 	var def: Resource = _catalog.get_definition(item_id)
@@ -1336,12 +1355,22 @@ func _cell_description(cell: Dictionary) -> Dictionary:
 	return {
 		"item_id": String(item_id),
 		"display_name": str(def.display_name),
+		"loot_tier": 1,
+		"category": str(def.category),
+		"item_type": str(def.item_type),
+		"magic": false,
 		"weight": float(def.weight),
 		"value": int(def.sell_price),
 		"equip_slot": str(def.equip_slot),
 		"weapon_kind": str(def.weapon_kind),
 		"damage_min": int(def.damage_min),
 		"damage_max": int(def.damage_max),
+		"damage_type": int(def.damage_type),
+		"armor_level": float(def.armor_level),
+		"armor_ratings": (def.armor_ratings as Dictionary).duplicate(true),
+		"requirements": (def.requirements as Dictionary).duplicate(true),
+		"modifiers": (def.modifiers as Dictionary).duplicate(true),
+		"value_modifiers": [],
 	}
 
 
@@ -1565,7 +1594,7 @@ func _attack_context_for(attacker_id: StringName) -> Dictionary:
 		if not MagicRules.is_offensive_bolt(sel):
 			out["mode"] = "casting_support"
 			out["spell_id"] = sel
-			out["mana_cost"] = MagicRules.spell_mana_cost(sel, tier)
+			out["mana_cost"] = _spell_mana_cost_for(attacker_id, sel, tier)
 			return out
 		var dr: Vector2i = MagicRules.spell_damage_range_for_tier(sel, tier)
 		out["mode"] = "casting"
@@ -1573,9 +1602,28 @@ func _attack_context_for(attacker_id: StringName) -> Dictionary:
 		out["dmg_min"] = dr.x
 		out["dmg_max"] = dr.y
 		out["damage_type"] = MagicRules.offensive_spell_damage_type(sel)
-		out["mana_cost"] = MagicRules.spell_mana_cost(sel, tier)
+		out["mana_cost"] = _spell_mana_cost_for(attacker_id, sel, tier)
 		return out
 	return out
+
+
+func _spell_mana_cost_for(attacker_id: StringName, spell_id: StringName, tier: int) -> int:
+	return MagicRules.spell_mana_cost_after_arcane_connection(
+		spell_id,
+		tier,
+		_arcane_connection_skill_for(attacker_id),
+	)
+
+
+func _arcane_connection_skill_for(character_id: StringName) -> float:
+	if _registry == null or _stats == null or _equipment == null:
+		return 0.0
+	var data: Resource = _registry.get_character(character_id)
+	if data == null:
+		return 0.0
+	var st: Dictionary = _stats.get_effective_stats(character_id, data, _equipment)
+	var sm: Dictionary = st.get("skill_modifiers", {}) as Dictionary
+	return float(sm.get(_Sch.SKILL_ARCANE_CONNECTION, 0.0))
 
 
 func _engagement_range_for_hunter(hunter_cid: StringName) -> float:
@@ -1953,18 +2001,32 @@ func _apply_pc_support_spell_on_party_actor(
 			var mm: float = float(tst.get("max_mana", 1.0))
 			tdata.current_mana = clampf(float(tdata.current_mana) + 18.0, 0.0, mm)
 			detail = "replenished mana for %s" % tname
-		MagicRules.SPELL_REFLEXES_BUFF:
-			var ak: String = _Sch.ATTRIBUTE_REFLEXES
-			tdata.transient_attribute_bonus[ak] = int(tdata.transient_attribute_bonus.get(ak, 0)) + 2
-			detail = "buffed Reflexes on %s" % tname
-		MagicRules.SPELL_MELEE_COMBAT_BUFF:
-			var sk: String = _Sch.SKILL_MELEE_COMBAT
-			tdata.transient_skill_bonus[sk] = int(tdata.transient_skill_bonus.get(sk, 0)) + 2
-			detail = "buffed Melee Combat on %s" % tname
 		_:
-			var mh3: float = float(tst.get("max_health", 1.0))
-			tdata.current_health = clampf(float(tdata.current_health) + 8.0, 0.0, mh3)
-			detail = "aided %s" % tname
+			var buff: Dictionary = MagicRules.buff_spell_definition(spell_id)
+			if not buff.is_empty():
+				var target_key: String = str(buff.get("target_id", ""))
+				var amount: int = int(buff.get("amount", MagicRules.BUFF_AMOUNT))
+				match str(buff.get("kind", "")):
+					MagicRules.BUFF_KIND_ATTRIBUTE:
+						tdata.transient_attribute_bonus[target_key] = int(tdata.transient_attribute_bonus.get(target_key, 0)) + amount
+					MagicRules.BUFF_KIND_SKILL:
+						tdata.transient_skill_bonus[target_key] = int(tdata.transient_skill_bonus.get(target_key, 0)) + amount
+				detail = "buffed %s on %s" % [str(buff.get("display_name", MagicRules.spell_display_name(spell_id))).trim_suffix(" Buff"), tname]
+			else:
+				var protection: Dictionary = MagicRules.protection_spell_definition(spell_id)
+				if not protection.is_empty():
+					match str(protection.get("kind", "")):
+						MagicRules.PROTECTION_KIND_ARMOR:
+							tdata.transient_armor_bonus = float(tdata.transient_armor_bonus) + float(protection.get("armor_bonus", MagicRules.ARMOR_PROTECTION_AMOUNT))
+						MagicRules.PROTECTION_KIND_DAMAGE_TYPE:
+							var damage_type: int = int(protection.get("damage_type", DamageTypes.Id.SLASHING))
+							var key: String = str(damage_type)
+							tdata.transient_damage_protection_percent[key] = float(tdata.transient_damage_protection_percent.get(key, 0.0)) + float(protection.get("percent", MagicRules.DAMAGE_TYPE_PROTECTION_PERCENT))
+					detail = "protected %s with %s" % [tname, MagicRules.spell_display_name(spell_id)]
+				else:
+					var mh3: float = float(tst.get("max_health", 1.0))
+					tdata.current_health = clampf(float(tdata.current_health) + 8.0, 0.0, mh3)
+					detail = "aided %s" % tname
 	if _stats != null:
 		_stats.invalidate(target_id)
 	outcome["handled"] = true
@@ -2097,6 +2159,27 @@ func _spawn_corpse_marker(corpse_id: StringName, world_position: Vector2, label:
 	node.add_child(glyph)
 	_actors_root.add_child(node)
 	_corpse_node_by_id[corpse_id] = node
+
+
+func _spawn_default_merchant_marker() -> void:
+	if _actors_root == null or _merchant == null:
+		return
+	if _merchant_node_by_id.has(_DEFAULT_MERCHANT_ID):
+		var existing: Node = _merchant_node_by_id[_DEFAULT_MERCHANT_ID] as Node
+		if existing != null and is_instance_valid(existing):
+			return
+	var node := Node2D.new()
+	node.name = "Merchant_%s" % String(_DEFAULT_MERCHANT_ID)
+	node.set_meta("merchant_id", _DEFAULT_MERCHANT_ID)
+	node.set_meta("label", "Merchant")
+	node.global_position = Vector2(168.0, 0.0)
+	node.add_to_group(&"world_merchants")
+	var glyph := Polygon2D.new()
+	glyph.polygon = PackedVector2Array([Vector2(0, -16), Vector2(14, 8), Vector2(-14, 8)])
+	glyph.color = Color(0.95, 0.78, 0.24, 1.0)
+	node.add_child(glyph)
+	_actors_root.add_child(node)
+	_merchant_node_by_id[_DEFAULT_MERCHANT_ID] = node
 
 
 func _prune_corpse_markers() -> void:
@@ -2485,6 +2568,7 @@ func _mount_world() -> void:
 		var maybe_actors: Node = instance.get_node_or_null("Actors")
 		if maybe_actors is Node2D:
 			_actors_root = maybe_actors as Node2D
+	_spawn_default_merchant_marker()
 
 
 func _setup_hud_placeholders() -> void:
@@ -3705,6 +3789,9 @@ func _show_selection_context_menu_at(global_position: Vector2) -> void:
 		if _selection_world_kind == "corpse":
 			pm.add_item("Loot corpse", _SEL_CTX_LOOT)
 			added += 1
+		if _selection_world_kind == "merchant":
+			pm.add_item("Trade", _SEL_CTX_TRADE)
+			added += 1
 	if added <= 0:
 		return
 	pm.position = Vector2i(global_position)
@@ -3726,6 +3813,8 @@ func _on_selection_actions_id_pressed(menu_id: int) -> void:
 			_on_bc_meditate_pressed()
 		_SEL_CTX_LOOT:
 			_open_corpse_loot_dialog(_selection_world_id)
+		_SEL_CTX_TRADE:
+			_on_bc_trade_pressed()
 
 
 func _open_corpse_loot_dialog(corpse_id: StringName) -> void:
@@ -3738,6 +3827,10 @@ func _open_corpse_loot_dialog(corpse_id: StringName) -> void:
 	var list := ItemList.new()
 	list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var bag: Array = _corpse.get_corpse_bag(corpse_id)
+	var item_menu := PopupMenu.new()
+	item_menu.add_item("Inspect", 1)
+	item_menu.id_pressed.connect(_on_loot_item_context_inspect)
+	dlg.add_child(item_menu)
 	for i in range(bag.size()):
 		var cell: Variant = bag[i]
 		if cell == null:
@@ -3748,6 +3841,17 @@ func _open_corpse_loot_dialog(corpse_id: StringName) -> void:
 		var qty: int = int(d.get("quantity", 1))
 		var row: int = list.add_item("%02d  %s x%d" % [i, label, qty])
 		list.set_item_metadata(row, i)
+	list.item_clicked.connect(func(index: int, at_position: Vector2, mouse_button_index: int) -> void:
+		if mouse_button_index != MOUSE_BUTTON_RIGHT:
+			return
+		var slot: int = int(list.get_item_metadata(index))
+		if slot < 0 or slot >= bag.size() or bag[slot] == null:
+			return
+		_loot_context_item_desc = _cell_description(bag[slot] as Dictionary)
+		item_menu.position = Vector2i(list.get_screen_position() + at_position)
+		item_menu.reset_size()
+		item_menu.popup()
+	)
 	root.add_child(list)
 	var btn := Button.new()
 	btn.text = "Loot selected"
@@ -3767,6 +3871,130 @@ func _open_corpse_loot_dialog(corpse_id: StringName) -> void:
 			_append_command_feed("[loot] Could not loot corpse (%s)." % reason, _focus_character_id)
 	)
 	root.add_child(btn)
+	dlg.add_child(root)
+	add_child(dlg)
+	dlg.popup_centered()
+
+
+func _on_loot_item_context_inspect(_menu_id: int) -> void:
+	_show_item_inspect_dialog(_loot_context_item_desc)
+
+
+func _on_bc_loot_pressed() -> void:
+	if _selection_portrait_source != "world":
+		return
+	if _selection_world_kind == "corpse" and _selection_world_id != &"":
+		_open_corpse_loot_dialog(_selection_world_id)
+
+
+func _on_bc_trade_pressed() -> void:
+	if _selection_portrait_source != "world" or _selection_world_kind != "merchant":
+		return
+	var merchant_id: StringName = _selection_world_id
+	if merchant_id == &"":
+		merchant_id = _DEFAULT_MERCHANT_ID
+	_open_merchant_trade_dialog(merchant_id)
+
+
+func _open_merchant_trade_dialog(merchant_id: StringName) -> void:
+	if _merchant == null or _inventory == null or _catalog == null or _focus_character_id == &"":
+		return
+	var dlg := AcceptDialog.new()
+	dlg.title = "Merchant"
+	dlg.ok_button_text = "Close"
+	var root := HBoxContainer.new()
+	root.custom_minimum_size = Vector2(620, 320)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var buy_col := VBoxContainer.new()
+	buy_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var buy_lbl := Label.new()
+	buy_lbl.text = "Buy"
+	buy_col.add_child(buy_lbl)
+	var stock_list := ItemList.new()
+	stock_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var stock: Array = _merchant.get_merchant_stock(merchant_id)
+	for i in range(stock.size()):
+		var entry: Dictionary = stock[i] as Dictionary
+		var item_id := StringName(str(entry.get("item_id", "")))
+		var def: Resource = _catalog.get_definition(item_id)
+		if def == null:
+			continue
+		var row: int = stock_list.add_item("%s  %dg  (stock %d)" % [str(def.display_name), int(def.buy_price), int(entry.get("quantity", 0))])
+		stock_list.set_item_metadata(row, item_id)
+	stock_list.item_clicked.connect(func(index: int, _at_position: Vector2, mouse_button_index: int) -> void:
+		if mouse_button_index != MOUSE_BUTTON_RIGHT:
+			return
+		var item_id: StringName = StringName(str(stock_list.get_item_metadata(index)))
+		_show_item_inspect_dialog(_static_item_description(item_id))
+	)
+	var buy_btn := Button.new()
+	buy_btn.text = "Buy selected"
+	buy_btn.pressed.connect(func() -> void:
+		var sel: PackedInt32Array = stock_list.get_selected_items()
+		if sel.is_empty():
+			return
+		var item_id: StringName = StringName(str(stock_list.get_item_metadata(sel[0])))
+		var err: Error = _merchant.buy_item(_focus_character_id, merchant_id, item_id, 1)
+		if err == OK:
+			_append_command_feed("[trade] Bought %s." % String(item_id), _focus_character_id)
+			if _inventory_panel != null and _inventory_panel.has_method("refresh"):
+				_inventory_panel.refresh()
+		else:
+			_append_command_feed("[trade] Could not buy %s." % String(item_id), _focus_character_id)
+	)
+	buy_col.add_child(stock_list)
+	buy_col.add_child(buy_btn)
+	var sell_col := VBoxContainer.new()
+	sell_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var sell_lbl := Label.new()
+	sell_lbl.text = "Sell"
+	sell_col.add_child(sell_lbl)
+	var bag_list := ItemList.new()
+	bag_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var bag: Array = _inventory.get_bag_copy(_focus_character_id)
+	for i in range(bag.size()):
+		var cell: Variant = bag[i]
+		if cell == null:
+			continue
+		var d: Dictionary = cell as Dictionary
+		var desc: Dictionary = _cell_description(d)
+		var row2: int = bag_list.add_item("%02d  %s x%d  %dg" % [
+			i,
+			str(desc.get("display_name", String(_cell_item_id(d)))),
+			int(d.get("quantity", 1)),
+			int(desc.get("value", 0)),
+		])
+		bag_list.set_item_metadata(row2, i)
+	bag_list.item_clicked.connect(func(index: int, _at_position: Vector2, mouse_button_index: int) -> void:
+		if mouse_button_index != MOUSE_BUTTON_RIGHT:
+			return
+		var slot: int = int(bag_list.get_item_metadata(index))
+		var cell: Variant = _inventory.get_cell(_focus_character_id, slot)
+		if cell is Dictionary:
+			_show_item_inspect_dialog(_cell_description(cell as Dictionary))
+	)
+	var sell_btn := Button.new()
+	sell_btn.text = "Sell selected"
+	sell_btn.pressed.connect(func() -> void:
+		var sel: PackedInt32Array = bag_list.get_selected_items()
+		if sel.is_empty():
+			return
+		var slot: int = int(bag_list.get_item_metadata(sel[0]))
+		var err: Error = _merchant.sell_from_bag(_focus_character_id, merchant_id, slot, 1)
+		if err == OK:
+			_append_command_feed("[trade] Sold item.", _focus_character_id)
+			dlg.queue_free()
+			if _inventory_panel != null and _inventory_panel.has_method("refresh"):
+				_inventory_panel.refresh()
+			_open_merchant_trade_dialog(merchant_id)
+		else:
+			_append_command_feed("[trade] Could not sell item.", _focus_character_id)
+	)
+	sell_col.add_child(bag_list)
+	sell_col.add_child(sell_btn)
+	root.add_child(buy_col)
+	root.add_child(sell_col)
 	dlg.add_child(root)
 	add_child(dlg)
 	dlg.popup_centered()
@@ -3800,6 +4028,22 @@ func try_read_scroll_from_bag(bag_index: int) -> void:
 		return
 	var data: Resource = _registry.get_character(_focus_character_id)
 	if data == null or not data.has_method(&"learn_spell"):
+		return
+	if teach == String(MagicRules.SCROLL_TEACHES_ALL_SPELLS):
+		var learned_count: int = 0
+		for sid in MagicRules.all_spell_ids():
+			if data.learn_spell(sid):
+				learned_count += 1
+		if learned_count <= 0:
+			_append_command_feed("[ui] Already know all spells.")
+			return
+		_inventory.try_take_single(_focus_character_id, bag_index)
+		_append_command_feed("[ui] Learned %d spell(s) from testing scroll." % learned_count)
+		if _inventory_panel != null and _inventory_panel.has_method("refresh"):
+			_inventory_panel.refresh()
+		if _stats != null:
+			_stats.invalidate(_focus_character_id)
+		_refresh_panel_b_auxiliary()
 		return
 	if not data.learn_spell(StringName(teach)):
 		_append_command_feed("[ui] Already know %s." % MagicRules.spell_display_name(StringName(teach)))
@@ -4298,6 +4542,18 @@ func _pick_world_at_world_pos(world_p: Vector2) -> void:
 			best_node = c2d
 			best_kind = "corpse"
 			best_id = c2d.get_meta("corpse_id", &"") as StringName
+	for mo in get_tree().get_nodes_in_group(&"world_merchants"):
+		if not (mo is Node2D):
+			continue
+		var m2d: Node2D = mo as Node2D
+		if not _world_viewport.is_ancestor_of(m2d):
+			continue
+		var d2m: float = world_p.distance_squared_to(m2d.global_position)
+		if d2m < best_d2:
+			best_d2 = d2m
+			best_node = m2d
+			best_kind = "merchant"
+			best_id = m2d.get_meta("merchant_id", _DEFAULT_MERCHANT_ID) as StringName
 	if best_node == null or best_d2 > pick_r2:
 		_selection_world_kind = "none"
 		_selection_world_id = &""
@@ -4436,6 +4692,15 @@ func _refresh_selection_portrait() -> void:
 			_bb_subtitle.text = "%s · %d slot(s)" % [label, count]
 			_bb_portrait.texture = null
 			_bb_fallback.color = Color(0.45, 0.34, 0.18, 1.0)
+			_bb_fallback.visible = true
+			_sync_ui_attack_to_selection()
+			_refresh_panel_b_auxiliary()
+			return
+		if _selection_world_kind == "merchant":
+			_bb_title.text = "Merchant"
+			_bb_subtitle.text = "Buy and sell goods"
+			_bb_portrait.texture = null
+			_bb_fallback.color = Color(0.95, 0.78, 0.24, 1.0)
 			_bb_fallback.visible = true
 			_sync_ui_attack_to_selection()
 			_refresh_panel_b_auxiliary()
@@ -4768,6 +5033,22 @@ func _refresh_bc_action_row() -> void:
 	elif cast_on_actor_ok:
 		can_strike = mode == "casting_support"
 	_bc_btn_attack.visible = show_primary
+	if _bc_btn_loot != null:
+		var show_loot: bool = (
+			_selection_portrait_source == "world"
+			and _selection_world_kind == "corpse"
+			and _selection_world_id != &""
+		)
+		_bc_btn_loot.visible = show_loot
+		_bc_btn_loot.disabled = not show_loot
+	if _bc_btn_trade != null:
+		var show_trade: bool = (
+			_selection_portrait_source == "world"
+			and _selection_world_kind == "merchant"
+			and _merchant != null
+		)
+		_bc_btn_trade.visible = show_trade
+		_bc_btn_trade.disabled = not show_trade
 	var busy_cast: bool = _spell_cast_busy and (_spell_cast_attacker_id == _focus_character_id)
 	_bc_btn_attack.disabled = (show_primary and not can_strike) or busy_cast
 	if show_primary:
@@ -4779,7 +5060,10 @@ func _refresh_bc_action_row() -> void:
 			_bc_btn_attack.text = "Stop attack"
 		else:
 			_bc_btn_attack.text = "Attack"
-	var show_inspect: bool = _selection_portrait_source == "world" and _selection_world_kind != "none" and _selection_world_node != null
+	var show_inspect: bool = (
+		(_selection_portrait_source == "world" and _selection_world_kind != "none" and _selection_world_node != null)
+		or (_selection_portrait_source == "inventory" and not _selection_inventory_snapshot.is_empty())
+	)
 	_bc_btn_inspect.visible = show_inspect
 	_bc_btn_inspect.disabled = not show_inspect
 
@@ -4820,6 +5104,43 @@ func _rebuild_panel_bd_spells() -> void:
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.pressed.connect(_on_bd_spell_button_pressed.bind(sid))
 		_spells_list_host.add_child(btn)
+
+
+func _open_spell_book_dialog() -> void:
+	if is_instance_valid(_spell_book_dialog):
+		_spell_book_dialog.queue_free()
+	_spell_book_dialog = AcceptDialog.new()
+	_spell_book_dialog.title = "Spell Book"
+	_spell_book_dialog.ok_button_text = "Close"
+	_spell_book_dialog.min_size = Vector2i(360, 420)
+	var root := VBoxContainer.new()
+	root.custom_minimum_size = Vector2(340, 360)
+	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var heading := Label.new()
+	heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	root.add_child(heading)
+	var list := ItemList.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(list)
+	if _focus_character_id == &"" or _registry == null:
+		heading.text = "No character selected."
+	else:
+		var data: Resource = _registry.get_character(_focus_character_id)
+		if data == null:
+			heading.text = "No character selected."
+		else:
+			heading.text = "%s's learned spells" % str(data.user_name)
+			var known: PackedStringArray = data.known_spells
+			if known.is_empty():
+				list.add_item("No spells learned yet.")
+			else:
+				for s in known:
+					list.add_item(MagicRules.spell_display_name(StringName(str(s))))
+	_spell_book_dialog.add_child(root)
+	add_child(_spell_book_dialog)
+	_spell_book_dialog.popup_centered()
 
 
 func _on_bd_spell_button_pressed(spell_id: StringName) -> void:
@@ -4930,6 +5251,199 @@ func _ensure_inspect_dialog() -> void:
 	_inspect_dialog = dlg
 
 
+func _append_item_inspect_lines(lines: PackedStringArray, desc: Dictionary) -> void:
+	if desc.is_empty():
+		lines.append("Empty slot.")
+		return
+	var kind: String = _item_inspect_kind(desc)
+	if kind != "caster":
+		lines.append(str(desc.get("display_name", desc.get("item_id", "Item"))))
+	lines.append("Value: %d" % int(desc.get("value", 0)))
+	lines.append("Weight: %.2f" % float(desc.get("weight", 0.0)))
+	_append_item_inlay_line(lines, desc, kind)
+	_append_item_magic_lines(lines, desc)
+	match kind:
+		"armor":
+			lines.append("Armor Level: %.1f" % float(desc.get("armor_level", 0.0)))
+			_append_resistance_lines(lines, desc.get("armor_ratings", {}) as Dictionary)
+		"melee":
+			lines.append("Damage: %d-%d Damage of %s" % [
+				int(desc.get("damage_min", 0)),
+				int(desc.get("damage_max", 0)),
+				_damage_type_display(int(desc.get("damage_type", DamageTypes.Id.SLASHING))),
+			])
+			var mods_m: Dictionary = desc.get("modifiers", {}) as Dictionary
+			lines.append("Speed: %s" % _format_signed_percent(float(mods_m.get("attack_speed_bonus", 0.0))))
+			lines.append("Melee Defense: %s" % _format_multiplier_bonus(mods_m, "melee_defense_multiplier"))
+			lines.append("Melee Combat: %s" % _format_multiplier_bonus(mods_m, "melee_combat_multiplier"))
+		"caster":
+			var mods_c: Dictionary = desc.get("modifiers", {}) as Dictionary
+			lines.append("Melee Defense: %s" % _format_multiplier_bonus(mods_c, "melee_defense_multiplier"))
+			lines.append("Missile Defense: %s" % _format_multiplier_bonus(mods_c, "missile_defense_multiplier"))
+			lines.append("Arcane Connection: %s" % _format_multiplier_bonus(mods_c, "arcane_connection_multiplier", "arcane_conversion_multiplier"))
+			if mods_c.has("spell_extra_damage_percent"):
+				var dt: int = int(mods_c.get("spell_extra_damage_type", DamageTypes.Id.FIRE))
+				var pct: int = int(round(float(mods_c.get("spell_extra_damage_percent", 0.0)) * 100.0))
+				lines.append("This item appears to be empowered by %s, increasing damage of spells using %s by %d%%." % [
+					_damage_type_display(dt),
+					_damage_type_display(dt),
+					pct,
+				])
+		_:
+			if int(desc.get("damage_max", 0)) > 0:
+				lines.append("Damage: %d-%d Damage of %s" % [
+					int(desc.get("damage_min", 0)),
+					int(desc.get("damage_max", 0)),
+					_damage_type_display(int(desc.get("damage_type", DamageTypes.Id.SLASHING))),
+				])
+
+
+func _item_inspect_kind(desc: Dictionary) -> String:
+	if str(desc.get("weapon_kind", "")) == "casting":
+		return "caster"
+	if str(desc.get("weapon_kind", "")) == "melee":
+		return "melee"
+	if str(desc.get("item_type", "")) == "armor" or float(desc.get("armor_level", 0.0)) > 0.0:
+		return "armor"
+	return "generic"
+
+
+func _append_item_inlay_line(lines: PackedStringArray, desc: Dictionary, kind: String) -> void:
+	var vmods: Array = desc.get("value_modifiers", []) as Array
+	var metal_or_fabric: int = 0
+	var jewels: int = 0
+	var material_word: String = "metal"
+	for entry in vmods:
+		if not (entry is Dictionary):
+			continue
+		var label: String = str((entry as Dictionary).get("label", "")).to_lower()
+		if label.contains("fabric"):
+			metal_or_fabric += 1
+			material_word = "fabric"
+		elif label.contains("metal"):
+			metal_or_fabric += 1
+			material_word = "metal"
+		elif label.contains("jewel"):
+			jewels += 2 if label.begins_with("2") else 1
+	if metal_or_fabric <= 0 and jewels <= 0:
+		return
+	var item_name: String = str(desc.get("display_name", "item"))
+	var use_text: String = ""
+	match kind:
+		"armor":
+			use_text = " The %s covers %s of the body." % [item_name, _equip_area_display(StringName(str(desc.get("equip_slot", ""))))]
+		"melee":
+			use_text = " The %s is used for melee combat." % item_name
+		"caster":
+			use_text = " The %s is used for casting magic." % item_name
+	lines.append("This %s is inlayed with %d special %s and %d precious jewels.%s" % [
+		item_name,
+		metal_or_fabric,
+		material_word,
+		jewels,
+		use_text,
+	])
+
+
+func _append_item_magic_lines(lines: PackedStringArray, desc: Dictionary) -> void:
+	if not bool(desc.get("magic", false)):
+		return
+	var item_name: String = str(desc.get("display_name", "item"))
+	var mods: Dictionary = desc.get("modifiers", {}) as Dictionary
+	var spells: Array = mods.get("magic_spells", []) as Array
+	var spell_names: PackedStringArray = PackedStringArray()
+	for s in spells:
+		spell_names.append(str(s))
+	if spell_names.is_empty():
+		spell_names.append("unknown")
+	lines.append("This %s appears to be enchanted with magic. The spells are: %s" % [item_name, ", ".join(spell_names)])
+	if mods.has("arcane_connection_required"):
+		lines.append("To activate the spells of this item, you must have an Arcane Connection higher than %d." % int(mods.get("arcane_connection_required", 0)))
+
+
+func _append_resistance_lines(lines: PackedStringArray, ratings: Dictionary) -> void:
+	for dt in [
+		DamageTypes.Id.SLASHING,
+		DamageTypes.Id.PIERCING,
+		DamageTypes.Id.BLUDGEONING,
+		DamageTypes.Id.FIRE,
+		DamageTypes.Id.LIGHTNING,
+		DamageTypes.Id.COLD,
+		DamageTypes.Id.ACID,
+	]:
+		var rating: int = int(ratings.get(dt, ratings.get(str(dt), 0)))
+		lines.append("Resistance to %s: %s" % [_damage_type_display(dt), _resistance_word(rating)])
+
+
+func _resistance_word(rating: int) -> String:
+	if rating <= 0:
+		return "non-existent"
+	if rating <= 2:
+		return "horrible"
+	if rating <= 4:
+		return "bad"
+	if rating == 5:
+		return "neutral"
+	if rating <= 7:
+		return "good"
+	if rating <= 9:
+		return "very good"
+	return "exceptional"
+
+
+func _damage_type_display(damage_type: int) -> String:
+	return String(DamageTypes.id_to_string(damage_type)).replace("_", " ").capitalize()
+
+
+func _equip_area_display(slot: StringName) -> String:
+	match String(slot):
+		"head":
+			return "the head"
+		"shoulders":
+			return "the shoulders"
+		"chest":
+			return "the chest"
+		"waist":
+			return "the waist"
+		"legs":
+			return "the legs"
+		"feet":
+			return "the feet"
+		"hands":
+			return "the hands"
+		_:
+			return String(slot).replace("_", " ")
+
+
+func _format_multiplier_bonus(mods: Dictionary, key: String, legacy_key: String = "") -> String:
+	var raw: float = float(mods.get(key, mods.get(legacy_key, 1.0)))
+	return _format_signed_percent(raw - 1.0)
+
+
+func _format_signed_percent(value: float) -> String:
+	var pct: int = int(round(value * 100.0))
+	return "%+d%%" % pct
+
+
+func _item_inspect_text(desc: Dictionary) -> String:
+	var lines: PackedStringArray = PackedStringArray()
+	_append_item_inspect_lines(lines, desc)
+	var acc: String = ""
+	for i in range(lines.size()):
+		if i > 0:
+			acc += "\n"
+		acc += lines[i]
+	return acc
+
+
+func _show_item_inspect_dialog(desc: Dictionary) -> void:
+	_ensure_inspect_dialog()
+	if _inspect_body != null:
+		_inspect_body.clear()
+		_inspect_body.parse_bbcode(_item_inspect_text(desc))
+	_inspect_dialog.popup_centered()
+
+
 func _build_inspect_text() -> String:
 	var lines: PackedStringArray = PackedStringArray()
 	if _selection_portrait_source == "world" and _selection_world_kind == "actor" and _selection_world_id != &"":
@@ -4976,30 +5490,15 @@ func _build_inspect_text() -> String:
 	elif _selection_portrait_source == "world" and _selection_world_kind == "corpse" and _selection_world_node != null:
 		lines.append("[b]Corpse[/b]")
 		lines.append("Id: %s" % String(_selection_world_id))
-		if _corpse != null:
-			var bag: Array = _corpse.get_corpse_bag(_selection_world_id)
-			lines.append("Loot slots: %d" % bag.size())
-			for i in range(bag.size()):
-				var cell: Variant = bag[i]
-				if cell == null:
-					continue
-				var d: Dictionary = cell as Dictionary
-				var desc: Dictionary = _cell_description(d)
-				lines.append("%02d  %s x%d" % [i, str(desc.get("display_name", String(_cell_item_id(d)))), int(d.get("quantity", 1))])
+		lines.append("Use Loot to view this corpse's contents.")
+	elif _selection_portrait_source == "world" and _selection_world_kind == "merchant" and _selection_world_node != null:
+		lines.append("[b]Merchant[/b]")
+		lines.append("Id: %s" % String(_selection_world_id))
+		lines.append("This merchant buys and sells goods.")
+		lines.append("Currency: unlimited")
 	elif _selection_portrait_source == "inventory" and not _selection_inventory_snapshot.is_empty():
-		lines.append("[b]Inventory selection[/b]")
 		var src2: String = String(_selection_inventory_snapshot.get("source", ""))
-		lines.append("Source: %s" % src2)
-		if src2 == "bag":
-			lines.append("Bag index: %d" % int(_selection_inventory_snapshot.get("index", -1)))
-		elif src2 == "equip":
-			lines.append("Slot: %s" % String(_selection_inventory_snapshot.get("equip_slot", "")))
 		var ii: String = String(_selection_inventory_snapshot.get("item_id", ""))
-		var inst: String = String(_selection_inventory_snapshot.get("instance_id", ""))
-		lines.append("Item id: %s" % ii)
-		if not inst.is_empty():
-			lines.append("Instance: %s" % inst)
-		lines.append("Quantity: %d" % int(_selection_inventory_snapshot.get("quantity", 0)))
 		var desc: Dictionary = {}
 		if src2 == "bag" and _inventory != null:
 			var bi: int = int(_selection_inventory_snapshot.get("index", -1))
@@ -5011,23 +5510,7 @@ func _build_inspect_text() -> String:
 			if _equipment.has_method("get_equipped_details"):
 				desc = _equipment.call("get_equipped_details", _focus_character_id, eslot_desc) as Dictionary
 		if not desc.is_empty():
-			lines.append("Display name: %s" % str(desc.get("display_name", ii)))
-			lines.append("Tier: %d  Magic: %s" % [int(desc.get("loot_tier", 1)), str(desc.get("magic", false))])
-			lines.append("Weight: %.2f  Value: %d" % [float(desc.get("weight", 0.0)), int(desc.get("value", 0))])
-			lines.append("Equip slot: %s  Type: %s/%s" % [str(desc.get("equip_slot", "")), str(desc.get("category", "")), str(desc.get("item_type", ""))])
-			if int(desc.get("damage_max", 0)) > 0:
-				lines.append("Damage: %d-%d" % [int(desc.get("damage_min", 0)), int(desc.get("damage_max", 0))])
-			if float(desc.get("armor_level", 0.0)) > 0.0:
-				lines.append("Armor level: %.1f  Ratings: %s" % [float(desc.get("armor_level", 0.0)), str(desc.get("armor_ratings", {}))])
-			var req: Dictionary = desc.get("requirements", {}) as Dictionary
-			if not req.is_empty():
-				lines.append("Requires: %s >= %d" % [str(req.get("skill", "")), int(req.get("rank", 0))])
-			var mods: Dictionary = desc.get("modifiers", {}) as Dictionary
-			if not mods.is_empty():
-				lines.append("Modifiers: %s" % str(mods))
-			var vmods: Array = desc.get("value_modifiers", []) as Array
-			if not vmods.is_empty():
-				lines.append("Value rolls: %s" % str(vmods))
+			_append_item_inspect_lines(lines, desc)
 		elif not ii.is_empty() and _catalog != null and _catalog.has_method("get_definition"):
 			var def2: Resource = _catalog.get_definition(StringName(ii))
 			if def2 != null:

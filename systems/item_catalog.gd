@@ -145,7 +145,7 @@ func _register_bootstrap_items() -> void:
 	wand.equip_slot = _Eq.SLOT_MAIN_HAND
 	wand.weapon_kind = "casting"
 	wand.requirements = {"skill": "magic_combat", "rank": 0}
-	wand.modifiers = {"melee_defense_multiplier": 1.01, "arcane_conversion_multiplier": 1.02}
+	wand.modifiers = {"melee_defense_multiplier": 1.01, "arcane_connection_multiplier": 1.02}
 	wand.damage_min = 0
 	wand.damage_max = 0
 	wand.buy_price = 55
@@ -162,7 +162,7 @@ func _register_bootstrap_items() -> void:
 	orb.equip_slot = _Eq.SLOT_MAIN_HAND
 	orb.weapon_kind = "casting"
 	orb.requirements = {"skill": "magic_support", "rank": 0}
-	orb.modifiers = {"melee_defense_multiplier": 1.01, "arcane_conversion_multiplier": 1.03}
+	orb.modifiers = {"melee_defense_multiplier": 1.01, "arcane_connection_multiplier": 1.03}
 	orb.damage_min = 0
 	orb.damage_max = 0
 	orb.buy_price = 60
@@ -187,3 +187,15 @@ func _register_spell_scrolls() -> void:
 		scr.buy_price = 1
 		scr.sell_price = 0
 		register_item(scr)
+	var all_scr: Resource = _ItemDef.new()
+	all_scr.item_id = "scroll_all_spells"
+	all_scr.display_name = "All Spells (testing scroll)"
+	all_scr.category = "readable"
+	all_scr.item_type = "scroll"
+	all_scr.weight = 0.0
+	all_scr.max_stack = 99
+	all_scr.equip_slot = ""
+	all_scr.scroll_teaches_spell = String(MagicRules.SCROLL_TEACHES_ALL_SPELLS)
+	all_scr.buy_price = 0
+	all_scr.sell_price = 0
+	register_item(all_scr)

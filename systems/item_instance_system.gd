@@ -208,13 +208,21 @@ func _roll_magic(inst: Resource, _source: String) -> void:
 	if inst.category != "wearable" or randf() >= 0.04:
 		return
 	inst.magic = true
+	inst.modifiers["magic_spells"] = [MagicRules.spell_display_name(_random_magic_spell())]
+	inst.modifiers["arcane_connection_required"] = randi_range(10, 60)
 	var roll: float = randf()
 	if inst.weapon_kind == "casting":
 		if roll < 0.2:
 			inst.modifiers["missile_defense_multiplier"] = randf_range(1.02, 1.08)
 		elif roll < 0.97:
-			inst.modifiers["arcane_conversion_multiplier"] = randf_range(1.04, 1.14)
+			inst.modifiers["arcane_connection_multiplier"] = randf_range(1.04, 1.14)
 		else:
 			inst.modifiers["spell_extra_damage_percent"] = randf_range(0.10, 0.20)
+			inst.modifiers["spell_extra_damage_type"] = randi_range(DamageTypes.Id.FIRE, DamageTypes.Id.ACID)
 	else:
 		inst.modifiers["melee_defense_multiplier"] = randf_range(1.02, 1.08)
+
+
+func _random_magic_spell() -> StringName:
+	var spells: Array[StringName] = MagicRules.all_scroll_teach_spell_ids()
+	return spells[randi_range(0, spells.size() - 1)]

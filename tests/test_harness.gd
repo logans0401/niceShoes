@@ -23,6 +23,7 @@ const CombatBalanceScr := preload("res://data/combat_balance_config.gd")
 const AutomationSystemScr := preload("res://systems/automation_system.gd")
 const GameConstantsScr := preload("res://scripts/game_constants.gd")
 const CharacterSchemaScr := preload("res://scripts/character_schema.gd")
+const MagicRulesScr := preload("res://scripts/magic_rules.gd")
 
 const _MAX_ROSTER := 13
 const _MAX_PARTY := 4
@@ -50,6 +51,18 @@ func _run_all() -> int:
 		return 1
 	if not _test_combat_body_area_mitigation():
 		push_error("test_harness: combat body-area mitigation failed")
+		return 1
+	if not _test_arcane_connection_reduces_mana_cost():
+		push_error("test_harness: arcane connection mana reduction failed")
+		return 1
+	if not _test_buff_spell_catalog():
+		push_error("test_harness: buff spell catalog failed")
+		return 1
+	if not _test_all_spells_testing_scroll():
+		push_error("test_harness: all-spells testing scroll failed")
+		return 1
+	if not _test_protection_spell_catalog_and_mitigation():
+		push_error("test_harness: protection spell catalog/mitigation failed")
 		return 1
 	if not _test_automation():
 		push_error("test_harness: automation failed")
@@ -235,6 +248,119 @@ func _test_combat_body_area_mitigation() -> bool:
 		and float(res.get("damage", 0.0)) < float(res.get("raw_damage", 0.0))
 	)
 	_free_node(combat)
+	return ok
+
+
+func _test_arcane_connection_reduces_mana_cost() -> bool:
+	var base: int = MagicRulesScr.spell_mana_cost(MagicRulesScr.BOLT_FIRE, 1)
+	var reduced: int = MagicRulesScr.spell_mana_cost_after_arcane_connection(MagicRulesScr.BOLT_FIRE, 1, 40.0)
+	var capped: int = MagicRulesScr.spell_mana_cost_after_arcane_connection(MagicRulesScr.BOLT_FIRE, 1, 999.0)
+	return reduced < base and capped >= 1 and capped <= reduced
+
+
+func _test_buff_spell_catalog() -> bool:
+	var buffs: Dictionary = MagicRulesScr.buff_spell_catalog()
+	var expected_count: int = CharacterSchemaScr.ALL_ATTRIBUTES.size() + CharacterSchemaScr.ALL_SKILLS.size()
+	if buffs.size() != expected_count:
+		return false
+	for attr in CharacterSchemaScr.ALL_ATTRIBUTES:
+		var sid := StringName("%s_buff" % str(attr))
+		var def: Dictionary = buffs.get(sid, {}) as Dictionary
+		if str(def.get("kind", "")) != MagicRulesScr.BUFF_KIND_ATTRIBUTE:
+			return false
+		if str(def.get("target_id", "")) != str(attr):
+			return false
+	for skill in CharacterSchemaScr.ALL_SKILLS:
+		var sid2 := StringName("%s_buff" % str(skill))
+		var def2: Dictionary = buffs.get(sid2, {}) as Dictionary
+		if str(def2.get("kind", "")) != MagicRulesScr.BUFF_KIND_SKILL:
+			return false
+		if str(def2.get("target_id", "")) != str(skill):
+			return false
+	var scrolls: Array[StringName] = MagicRulesScr.all_scroll_teach_spell_ids()
+	return (
+		scrolls.size() == 12
+		and scrolls.has(MagicRulesScr.SPELL_REFLEXES_BUFF)
+		and scrolls.has(MagicRulesScr.SPELL_MELEE_COMBAT_BUFF)
+	)
+
+
+func _test_all_spells_testing_scroll() -> bool:
+	var ids: Array[StringName] = MagicRulesScr.all_spell_ids()
+	var expected_size: int = (
+		MagicRulesScr.all_scroll_teach_spell_ids().size()
+		+ CharacterSchemaScr.ALL_ATTRIBUTES.size()
+		+ CharacterSchemaScr.ALL_SKILLS.size()
+		- 2
+		+ MagicRulesScr.all_protection_spell_ids().size()
+	)
+	if ids.size() != expected_size:
+		return false
+	for sid in MagicRulesScr.all_scroll_teach_spell_ids():
+		if not ids.has(sid):
+			return false
+	for sid2 in MagicRulesScr.all_buff_spell_ids():
+		if not ids.has(sid2):
+			return false
+	for sid3 in MagicRulesScr.all_protection_spell_ids():
+		if not ids.has(sid3):
+			return false
+	var cat: Node = CatScr.new()
+	cat.call("ensure_items")
+	var def: Resource = cat.call("get_definition", &"scroll_all_spells") as Resource
+	if def == null:
+		cat.free()
+		return false
+	var ok: bool = int(def.buy_price) == 0 and String(def.scroll_teaches_spell) == String(MagicRulesScr.SCROLL_TEACHES_ALL_SPELLS)
+	cat.free()
+	return ok
+
+
+func _test_protection_spell_catalog_and_mitigation() -> bool:
+	var protections: Dictionary = MagicRulesScr.protection_spell_catalog()
+	if protections.size() != 8:
+		return false
+	var armor_def: Dictionary = protections.get(&"armor_protection", {}) as Dictionary
+	if str(armor_def.get("kind", "")) != MagicRulesScr.PROTECTION_KIND_ARMOR:
+		return false
+	if not is_equal_approx(float(armor_def.get("armor_bonus", 0.0)), MagicRulesScr.ARMOR_PROTECTION_AMOUNT):
+		return false
+	for spell_id in MagicRulesScr.all_protection_spell_ids():
+		if MagicRulesScr.spell_display_name(spell_id).is_empty():
+			return false
+	var cd: Resource = CharacterDataScr.new()
+	cd.transient_armor_bonus = MagicRulesScr.ARMOR_PROTECTION_AMOUNT
+	cd.transient_damage_protection_percent[str(DamageTypes.Id.FIRE)] = MagicRulesScr.DAMAGE_TYPE_PROTECTION_PERCENT
+	var stats: Node = StatsSystemScr.new()
+	stats.configure(load("res://data/default_character_balance.tres") as Resource)
+	stats.configure_inventory_penalties(InvBalScr.new())
+	stats.configure_combat_balance(CombatBalanceScr.new())
+	var effective: Dictionary = stats.get_effective_stats(&"prot", cd, null)
+	var armor: Dictionary = effective.get("armor_by_area", {}) as Dictionary
+	for area in CombatBalanceScr.BODY_AREAS:
+		var area_stats: Dictionary = armor.get(area, {}) as Dictionary
+		if not is_equal_approx(float(area_stats.get("armor_level", 0.0)), MagicRulesScr.ARMOR_PROTECTION_AMOUNT):
+			_free_node(stats)
+			return false
+	var combat: Node = CombatSystemScr.new()
+	combat.configure(CombatBalanceScr.new())
+	var base: Dictionary = combat.resolve_melee_hit(
+		{"attack_rating": 10.0},
+		{"defense_rating": 0.0},
+		DamageTypes.Id.FIRE,
+		1000,
+		1000,
+	)
+	var protected: Dictionary = combat.resolve_melee_hit(
+		{"attack_rating": 10.0},
+		effective,
+		DamageTypes.Id.FIRE,
+		1000,
+		1000,
+	)
+	var ok: bool = float(protected.get("damage", 0.0)) < float(base.get("damage", 0.0))
+	_free_node(combat)
+	_free_node(stats)
 	return ok
 
 

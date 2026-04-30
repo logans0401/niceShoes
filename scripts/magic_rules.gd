@@ -3,6 +3,8 @@ class_name MagicRules
 ## Magic Combat vs Magic Support, bolt naming, tier scaffolding, and fizzle curve.
 ## Spells are data-driven later; this file encodes design constants and helpers.
 
+const _Sch := preload("res://scripts/character_schema.gd")
+
 enum School {
 	MAGIC_COMBAT,
 	MAGIC_SUPPORT,
@@ -54,12 +56,23 @@ const SPELL_REJUVENATE := &"rejuvenate"
 const SPELL_REPLENISH := &"replenish"
 const SPELL_REFLEXES_BUFF := &"reflexes_buff"
 const SPELL_MELEE_COMBAT_BUFF := &"melee_combat_buff"
+const SCROLL_TEACHES_ALL_SPELLS := &"__all_spells__"
+
+const BUFF_KIND_ATTRIBUTE := "attribute"
+const BUFF_KIND_SKILL := "skill"
+const BUFF_AMOUNT: int = 2
+const PROTECTION_KIND_ARMOR := "armor"
+const PROTECTION_KIND_DAMAGE_TYPE := "damage_type"
+const ARMOR_PROTECTION_AMOUNT: float = 4.0
+const DAMAGE_TYPE_PROTECTION_PERCENT: float = 0.01
 
 const MAX_SPELL_TIER: int = 10
 const BOLT_TIER1_MANA_COST: int = 6
 ## Tier 1 cast time (ms); each tier above adds this much.
 const SPELL_TIER1_CAST_MS: int = 125
 const SPELL_CAST_MS_PER_TIER_ABOVE_1: int = 175
+const ARCANE_CONNECTION_MANA_REDUCTION_PER_SKILL: float = 0.005
+const ARCANE_CONNECTION_MAX_MANA_REDUCTION: float = 0.50
 
 
 static func all_scroll_teach_spell_ids() -> Array[StringName]:
@@ -77,6 +90,98 @@ static func all_scroll_teach_spell_ids() -> Array[StringName]:
 		SPELL_REFLEXES_BUFF,
 		SPELL_MELEE_COMBAT_BUFF,
 	]
+
+
+static func all_spell_ids() -> Array[StringName]:
+	var seen: Dictionary = {}
+	var ids: Array[StringName] = []
+	for sid in all_scroll_teach_spell_ids():
+		seen[sid] = true
+		ids.append(sid)
+	for buff_id in all_buff_spell_ids():
+		if seen.has(buff_id):
+			continue
+		seen[buff_id] = true
+		ids.append(buff_id)
+	for protection_id in all_protection_spell_ids():
+		if seen.has(protection_id):
+			continue
+		seen[protection_id] = true
+		ids.append(protection_id)
+	return ids
+
+
+static func buff_spell_catalog() -> Dictionary:
+	var out: Dictionary = {}
+	for attr in _Sch.ALL_ATTRIBUTES:
+		var attr_id: String = str(attr)
+		var spell_id := StringName("%s_buff" % attr_id)
+		out[spell_id] = {
+			"kind": BUFF_KIND_ATTRIBUTE,
+			"target_id": attr_id,
+			"display_name": "%s Buff" % _title_from_id(attr_id),
+			"amount": BUFF_AMOUNT,
+		}
+	for skill in _Sch.ALL_SKILLS:
+		var skill_id: String = str(skill)
+		var spell_id2 := StringName("%s_buff" % skill_id)
+		out[spell_id2] = {
+			"kind": BUFF_KIND_SKILL,
+			"target_id": skill_id,
+			"display_name": "%s Buff" % _title_from_id(skill_id),
+			"amount": BUFF_AMOUNT,
+		}
+	return out
+
+
+static func all_buff_spell_ids() -> Array[StringName]:
+	var ids: Array[StringName] = []
+	for key in buff_spell_catalog().keys():
+		ids.append(key as StringName)
+	return ids
+
+
+static func is_buff_spell(spell_id: StringName) -> bool:
+	return buff_spell_catalog().has(spell_id)
+
+
+static func buff_spell_definition(spell_id: StringName) -> Dictionary:
+	return (buff_spell_catalog().get(spell_id, {}) as Dictionary).duplicate(true)
+
+
+static func protection_spell_catalog() -> Dictionary:
+	var out: Dictionary = {
+		&"armor_protection": {
+			"kind": PROTECTION_KIND_ARMOR,
+			"display_name": "Armor Protection",
+			"armor_bonus": ARMOR_PROTECTION_AMOUNT,
+		},
+	}
+	for damage_type in _all_damage_type_ids():
+		var type_name: String = String(DamageTypes.id_to_string(damage_type))
+		var spell_id := StringName("%s_protection" % type_name)
+		out[spell_id] = {
+			"kind": PROTECTION_KIND_DAMAGE_TYPE,
+			"display_name": "%s Protection" % _title_from_id(type_name),
+			"damage_type": damage_type,
+			"percent": DAMAGE_TYPE_PROTECTION_PERCENT,
+		}
+	return out
+
+
+static func all_protection_spell_ids() -> Array[StringName]:
+	var ids: Array[StringName] = []
+	for key in protection_spell_catalog().keys():
+		ids.append(key as StringName)
+	return ids
+
+
+static func is_protection_spell(spell_id: StringName) -> bool:
+	return protection_spell_catalog().has(spell_id)
+
+
+static func protection_spell_definition(spell_id: StringName) -> Dictionary:
+	return (protection_spell_catalog().get(spell_id, {}) as Dictionary).duplicate(true)
 
 
 static func is_offensive_bolt(spell_id: StringName) -> bool:
@@ -113,6 +218,12 @@ static func spell_display_name(spell_id: StringName) -> String:
 		SPELL_MELEE_COMBAT_BUFF:
 			return "Melee Combat Buff"
 		_:
+			var buff: Dictionary = buff_spell_definition(spell_id)
+			if not buff.is_empty():
+				return str(buff.get("display_name", String(spell_id)))
+			var protection: Dictionary = protection_spell_definition(spell_id)
+			if not protection.is_empty():
+				return str(protection.get("display_name", String(spell_id)))
 			return String(spell_id).replace("_", " ").capitalize()
 
 
@@ -134,6 +245,20 @@ static func spell_mana_cost(spell_id: StringName, tier: int) -> int:
 	if is_offensive_bolt(spell_id):
 		return BOLT_TIER1_MANA_COST + step * 3
 	return BOLT_TIER1_MANA_COST + step * 2
+
+
+static func spell_mana_cost_after_arcane_connection(
+	spell_id: StringName,
+	tier: int,
+	arcane_connection_skill: float,
+) -> int:
+	var base: int = spell_mana_cost(spell_id, tier)
+	var reduction: float = clampf(
+		arcane_connection_skill * ARCANE_CONNECTION_MANA_REDUCTION_PER_SKILL,
+		0.0,
+		ARCANE_CONNECTION_MAX_MANA_REDUCTION,
+	)
+	return maxi(1, int(ceil(float(base) * (1.0 - reduction))))
 
 
 static func spell_damage_range_for_tier(spell_id: StringName, tier: int) -> Vector2i:
@@ -195,3 +320,19 @@ static func spell_fizzle_chance(caster_skill_value: float, required_skill: float
 	if gap <= 15.0:
 		return lerpf(0.20, 0.08, (gap - 2.0) / 13.0)
 	return lerpf(0.08, 0.0, (gap - 15.0) / 5.0)
+
+
+static func _title_from_id(id: String) -> String:
+	return id.replace("_", " ").capitalize()
+
+
+static func _all_damage_type_ids() -> Array[int]:
+	return [
+		DamageTypes.Id.SLASHING,
+		DamageTypes.Id.PIERCING,
+		DamageTypes.Id.BLUDGEONING,
+		DamageTypes.Id.FIRE,
+		DamageTypes.Id.LIGHTNING,
+		DamageTypes.Id.COLD,
+		DamageTypes.Id.ACID,
+	]
