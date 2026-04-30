@@ -3826,25 +3826,16 @@ func _open_corpse_loot_dialog(corpse_id: StringName) -> void:
 	root.custom_minimum_size = Vector2(420, 260)
 	var list := ItemList.new()
 	list.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var bag: Array = _corpse.get_corpse_bag(corpse_id)
 	var item_menu := PopupMenu.new()
 	item_menu.add_item("Inspect", 1)
 	item_menu.id_pressed.connect(_on_loot_item_context_inspect)
 	dlg.add_child(item_menu)
-	for i in range(bag.size()):
-		var cell: Variant = bag[i]
-		if cell == null:
-			continue
-		var d: Dictionary = cell as Dictionary
-		var desc: Dictionary = _cell_description(d)
-		var label: String = str(desc.get("display_name", String(_cell_item_id(d))))
-		var qty: int = int(d.get("quantity", 1))
-		var row: int = list.add_item("%02d  %s x%d" % [i, label, qty])
-		list.set_item_metadata(row, i)
+	_refresh_corpse_loot_list(list, corpse_id)
 	list.item_clicked.connect(func(index: int, at_position: Vector2, mouse_button_index: int) -> void:
 		if mouse_button_index != MOUSE_BUTTON_RIGHT:
 			return
 		var slot: int = int(list.get_item_metadata(index))
+		var bag: Array = _corpse.get_corpse_bag(corpse_id)
 		if slot < 0 or slot >= bag.size() or bag[slot] == null:
 			return
 		_loot_context_item_desc = _cell_description(bag[slot] as Dictionary)
@@ -3864,7 +3855,9 @@ func _open_corpse_loot_dialog(corpse_id: StringName) -> void:
 		var err: Error = _corpse.loot_bag_slot_to_character(_focus_character_id, corpse_id, slot)
 		if err == OK:
 			_append_command_feed("[loot] Took item from corpse.", _focus_character_id)
-			dlg.queue_free()
+			_refresh_corpse_loot_list(list, corpse_id)
+			if list.item_count <= 0:
+				dlg.queue_free()
 			_refresh_selection_portrait()
 		else:
 			var reason: String = _corpse.get_last_loot_failure_reason() if _corpse.has_method("get_last_loot_failure_reason") else "range/bag/full"
@@ -3874,6 +3867,23 @@ func _open_corpse_loot_dialog(corpse_id: StringName) -> void:
 	dlg.add_child(root)
 	add_child(dlg)
 	dlg.popup_centered()
+
+
+func _refresh_corpse_loot_list(list: ItemList, corpse_id: StringName) -> void:
+	list.clear()
+	if _corpse == null:
+		return
+	var bag: Array = _corpse.get_corpse_bag(corpse_id)
+	for i in range(bag.size()):
+		var cell: Variant = bag[i]
+		if cell == null:
+			continue
+		var d: Dictionary = cell as Dictionary
+		var desc: Dictionary = _cell_description(d)
+		var label: String = str(desc.get("display_name", String(_cell_item_id(d))))
+		var qty: int = int(d.get("quantity", 1))
+		var row: int = list.add_item("%02d  %s x%d" % [i, label, qty])
+		list.set_item_metadata(row, i)
 
 
 func _on_loot_item_context_inspect(_menu_id: int) -> void:
@@ -3906,10 +3916,14 @@ func _open_merchant_trade_dialog(merchant_id: StringName) -> void:
 	root.custom_minimum_size = Vector2(620, 320)
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var trader_data: Resource = _registry.get_character(_focus_character_id) if _registry != null else null
+	var currency_lbl := Label.new()
+	currency_lbl.text = "Currency: %d" % (int(trader_data.gold) if trader_data != null else 0)
 	var buy_col := VBoxContainer.new()
 	buy_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var buy_lbl := Label.new()
 	buy_lbl.text = "Buy"
+	buy_col.add_child(currency_lbl)
 	buy_col.add_child(buy_lbl)
 	var stock_list := ItemList.new()
 	stock_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -3938,6 +3952,8 @@ func _open_merchant_trade_dialog(merchant_id: StringName) -> void:
 		var err: Error = _merchant.buy_item(_focus_character_id, merchant_id, item_id, 1)
 		if err == OK:
 			_append_command_feed("[trade] Bought %s." % String(item_id), _focus_character_id)
+			var refreshed_data: Resource = _registry.get_character(_focus_character_id) if _registry != null else null
+			currency_lbl.text = "Currency: %d" % (int(refreshed_data.gold) if refreshed_data != null else 0)
 			if _inventory_panel != null and _inventory_panel.has_method("refresh"):
 				_inventory_panel.refresh()
 		else:

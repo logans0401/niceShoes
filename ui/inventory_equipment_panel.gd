@@ -161,7 +161,8 @@ func refresh() -> void:
 		return
 	var eq: Node = _equipment
 	var st: Dictionary = _stats.get_effective_stats(_char_id, data, eq)
-	_burden_label.text = "Burden: %.1f / %.1f  (ratio %.2f)" % [
+	_burden_label.text = "Currency: %d  |  Burden: %.1f / %.1f  (ratio %.2f)" % [
+		int(data.gold),
 		float(data.laden_burden),
 		float(st.get("burden_capacity", 1.0)),
 		float(st.get("burden_ratio", 0.0)),
