@@ -64,6 +64,9 @@ func _run_all() -> int:
 	if not _test_protection_spell_catalog_and_mitigation():
 		push_error("test_harness: protection spell catalog/mitigation failed")
 		return 1
+	if not _test_item_magic_spell_pool():
+		push_error("test_harness: item magic spell pool failed")
+		return 1
 	if not _test_automation():
 		push_error("test_harness: automation failed")
 		return 1
@@ -362,6 +365,19 @@ func _test_protection_spell_catalog_and_mitigation() -> bool:
 	_free_node(combat)
 	_free_node(stats)
 	return ok
+
+
+func _test_item_magic_spell_pool() -> bool:
+	var ids: Array[StringName] = MagicRulesScr.all_item_magic_spell_ids()
+	var expected_size: int = MagicRulesScr.all_buff_spell_ids().size() + MagicRulesScr.all_protection_spell_ids().size()
+	if ids.size() != expected_size:
+		return false
+	for sid in ids:
+		if MagicRulesScr.is_offensive_bolt(sid):
+			return false
+		if not MagicRulesScr.is_buff_spell(sid) and not MagicRulesScr.is_protection_spell(sid):
+			return false
+	return true
 
 
 func _test_automation() -> bool:

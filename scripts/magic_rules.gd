@@ -111,6 +111,13 @@ static func all_spell_ids() -> Array[StringName]:
 	return ids
 
 
+static func all_item_magic_spell_ids() -> Array[StringName]:
+	var ids: Array[StringName] = []
+	ids.append_array(all_buff_spell_ids())
+	ids.append_array(all_protection_spell_ids())
+	return ids
+
+
 static func buff_spell_catalog() -> Dictionary:
 	var out: Dictionary = {}
 	for attr in _Sch.ALL_ATTRIBUTES:

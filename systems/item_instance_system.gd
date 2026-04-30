@@ -224,5 +224,5 @@ func _roll_magic(inst: Resource, _source: String) -> void:
 
 
 func _random_magic_spell() -> StringName:
-	var spells: Array[StringName] = MagicRules.all_scroll_teach_spell_ids()
+	var spells: Array[StringName] = MagicRules.all_item_magic_spell_ids()
 	return spells[randi_range(0, spells.size() - 1)]
