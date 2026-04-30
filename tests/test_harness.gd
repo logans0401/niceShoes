@@ -122,6 +122,9 @@ func _run_all() -> int:
 	if not _test_item_instances_and_equipment_details():
 		push_error("test_harness: item instances/equipment failed")
 		return 1
+	if not _test_armor_generation_matrix():
+		push_error("test_harness: armor generation matrix failed")
+		return 1
 	if not _test_accessory_generation_data():
 		push_error("test_harness: accessory generation data failed")
 		return 1
@@ -1049,6 +1052,38 @@ func _test_item_instances_and_equipment_details() -> bool:
 	_free_node(inst)
 	_free_node(cat)
 	_free_node(reg)
+	return ok
+
+
+func _test_armor_generation_matrix() -> bool:
+	var cat = CatScr.new()
+	cat.ensure_items()
+	for armor_type in CatScr.ARMOR_TYPES:
+		for slot in CatScr.ARMOR_SLOTS:
+			var item_id: StringName = CatScr.armor_item_id(str(armor_type), str(slot))
+			var def: Resource = cat.get_definition(item_id)
+			if def == null:
+				_free_node(cat)
+				return false
+			if str(def.category) != "wearable" or str(def.item_type) != "armor":
+				_free_node(cat)
+				return false
+			if str(def.equip_slot) != str(slot):
+				_free_node(cat)
+				return false
+			if float(def.armor_level) <= 0.0 or (def.armor_ratings as Dictionary).is_empty():
+				_free_node(cat)
+				return false
+	var loot_table: Resource = LootTableConfigScr.new()
+	var tier1: Array = loot_table.get_pool_for_tier(1)
+	var tier20: Array = loot_table.get_pool_for_tier(20)
+	var ok: bool = (
+		_loot_pool_weight_for_item(tier1, &"padded_cloth_chest") > 0
+		and _loot_pool_weight_for_item(tier1, &"leather_chest") > 0
+		and _loot_pool_weight_for_item(tier1, &"platemail_chest") == 0
+		and _loot_pool_weight_for_item(tier20, &"platemail_chest") > 0
+	)
+	_free_node(cat)
 	return ok
 
 

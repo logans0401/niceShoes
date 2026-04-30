@@ -4,6 +4,23 @@ extends Node
 const _ItemDef := preload("res://data/item_definition.gd")
 const _Eq := preload("res://scripts/equipment_schema.gd")
 var _defs: Dictionary = {}
+const ARMOR_TYPES: Array[String] = [
+	"padded_cloth",
+	"leather",
+	"studded_leather",
+	"chainmail",
+	"scalemail",
+	"platemail",
+]
+const ARMOR_SLOTS: Array[String] = [
+	"head",
+	"shoulders",
+	"chest",
+	"hands",
+	"waist",
+	"legs",
+	"feet",
+]
 
 
 func register_item(definition: Resource) -> void:
@@ -169,9 +186,98 @@ func _register_bootstrap_items() -> void:
 	orb.sell_price = 20
 	register_item(orb)
 
+	_register_armor_sets()
 	_register_accessories()
 
 	_register_spell_scrolls()
+
+
+static func armor_item_id(armor_type: String, slot: String) -> StringName:
+	return StringName("%s_%s" % [armor_type, slot])
+
+
+func _register_armor_sets() -> void:
+	for type_index in range(ARMOR_TYPES.size()):
+		var armor_type: String = ARMOR_TYPES[type_index]
+		for slot in ARMOR_SLOTS:
+			_register_armor_piece(armor_type, slot, type_index)
+
+
+func _register_armor_piece(armor_type: String, slot: String, type_index: int) -> void:
+	var armor: Resource = _ItemDef.new()
+	armor.item_id = String(armor_item_id(armor_type, slot))
+	armor.display_name = "%s %s" % [_armor_type_display(armor_type), _armor_slot_piece_name(slot)]
+	armor.category = "wearable"
+	armor.item_type = "armor"
+	armor.max_stack = 1
+	armor.equip_slot = slot
+	armor.loot_tier_min = _armor_type_min_tier(type_index)
+	armor.loot_tier_max = 20
+	var slot_weight: float = _armor_slot_weight(slot)
+	var type_weight: float = 1.0 + float(type_index) * 0.45
+	armor.weight = snappedf(slot_weight * type_weight, 0.1)
+	armor.armor_level = 1.0 + float(type_index) * 1.15
+	armor.armor_ratings = _armor_ratings_for_type(type_index)
+	armor.buy_price = int(round(20.0 + float(type_index) * 28.0 + slot_weight * 7.0))
+	armor.sell_price = maxi(1, int(round(float(armor.buy_price) * 0.32)))
+	register_item(armor)
+
+
+func _armor_type_display(armor_type: String) -> String:
+	return armor_type.replace("_", " ").capitalize()
+
+
+func _armor_slot_piece_name(slot: String) -> String:
+	match slot:
+		"head":
+			return "Cap"
+		"shoulders":
+			return "Pauldrons"
+		"chest":
+			return "Armor"
+		"hands":
+			return "Gloves"
+		"waist":
+			return "Belt"
+		"legs":
+			return "Leggings"
+		"feet":
+			return "Boots"
+		_:
+			return slot.capitalize()
+
+
+func _armor_slot_weight(slot: String) -> float:
+	match slot:
+		"head":
+			return 1.2
+		"shoulders":
+			return 2.0
+		"chest":
+			return 4.0
+		"hands":
+			return 1.0
+		"waist":
+			return 1.1
+		"legs":
+			return 3.0
+		"feet":
+			return 1.6
+		_:
+			return 1.0
+
+
+func _armor_type_min_tier(type_index: int) -> int:
+	return [1, 1, 4, 7, 10, 14][clampi(type_index, 0, 5)]
+
+
+func _armor_ratings_for_type(type_index: int) -> Dictionary:
+	var base: int = clampi(1 + type_index, 1, 10)
+	return {
+		0: clampi(base + 1, 0, 10),
+		1: clampi(base, 0, 10),
+		2: clampi(base, 0, 10),
+	}
 
 
 func _register_accessories() -> void:
