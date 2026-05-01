@@ -29,11 +29,12 @@ const FACING_ORDER: Array[Vector2] = [
 	Vector2(-_INV_SQRT2, _INV_SQRT2),
 ]
 
-## Logical facing -> source atlas column / row index (east/west art swap in source).
+## Match `world_hero_walk.png`: 8 direction columns (192px, same pitch as stand) × 4 walk rows.
+## Permute source column indices so east/west artwork matches movement (see prior layout fix).
 const _SOURCE_DIRECTION_INDEX := [0, 1, 6, 3, 4, 5, 2, 7]
 
 ## Bump when atlas load/normalisation changes so static cache cannot serve stale visuals.
-const _PIPELINE_VERSION := 5
+const _PIPELINE_VERSION := 7
 
 static var _cached_pipeline_version: int = -1
 static var _cached_frames: SpriteFrames = null
@@ -100,8 +101,6 @@ static func _normalize_stand_atlas(tex: Texture2D) -> Image:
 		var min_w := maxi(mini(32, cell_w / 6), 14)
 		if bbox.size.x < min_w or bbox.size.y < 14:
 			bbox = _fallback_bottom_square(cell)
-		elif bbox.size.y > bbox.size.x * 10:
-			bbox = _fallback_bottom_square(cell)
 		bbox = _clamp_rect_to_image(bbox, w, h)
 		var patch: Image = img.get_region(bbox)
 		var cell_img := _square_pack_resize(patch)
@@ -121,9 +120,9 @@ static func _normalize_walk_atlas(tex: Texture2D) -> Image:
 	_scrub_import_matte(img)
 	var w: int = img.get_width()
 	var h: int = img.get_height()
-	var cw: int = int(w / WALK_FRAME_COUNT)
-	var ch: int = int(h / DIR_COUNT)
-	if cw <= 1 or ch <= 1:
+	var col_w: int = int(w / DIR_COUNT)
+	var row_h: int = int(h / WALK_FRAME_COUNT)
+	if col_w <= 1 or row_h <= 1:
 		return null
 	var out := Image.create(
 		TARGET_CELL_WIDTH * WALK_FRAME_COUNT,
@@ -132,16 +131,13 @@ static func _normalize_walk_atlas(tex: Texture2D) -> Image:
 		Image.FORMAT_RGBA8
 	)
 	out.fill(Color(0, 0, 0, 0))
-	for logical_row in range(DIR_COUNT):
-		var src_row: int = int(_SOURCE_DIRECTION_INDEX[logical_row])
-		var row_top: int = int(src_row * ch)
+	for logical_dir in range(DIR_COUNT):
+		var src_col: int = int(_SOURCE_DIRECTION_INDEX[logical_dir])
 		for f in range(WALK_FRAME_COUNT):
-			var cell := Rect2i(f * cw, row_top, cw, ch)
+			var cell := Rect2i(src_col * col_w, f * row_h, col_w, row_h)
 			var bbox := _opaque_bbox_within(img, cell)
-			var min_w := maxi(mini(32, cw / 6), 14)
+			var min_w := maxi(mini(32, col_w / 6), 14)
 			if bbox.size.x < min_w or bbox.size.y < 14:
-				bbox = _fallback_bottom_square(cell)
-			elif bbox.size.y > bbox.size.x * 10:
 				bbox = _fallback_bottom_square(cell)
 			bbox = _clamp_rect_to_image(bbox, w, h)
 			var patch: Image = img.get_region(bbox)
@@ -149,7 +145,7 @@ static func _normalize_walk_atlas(tex: Texture2D) -> Image:
 			out.blit_rect(
 				cell_img,
 				Rect2i(0, 0, TARGET_CELL_WIDTH, TARGET_CELL_HEIGHT),
-				Vector2i(f * TARGET_CELL_WIDTH, logical_row * TARGET_CELL_HEIGHT)
+				Vector2i(f * TARGET_CELL_WIDTH, logical_dir * TARGET_CELL_HEIGHT)
 			)
 	return out
 
