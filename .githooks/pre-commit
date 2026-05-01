@@ -1,0 +1,5 @@
+#!/bin/sh
+# NiceShoes: run Godot headless harness before commits.
+# Enable once per clone: git config core.hooksPath .githooks
+ROOT="$(CDPATH= cd "$(dirname "$0")/.." && pwd)"
+exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ROOT/tests/run_headless.ps1"
