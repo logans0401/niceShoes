@@ -18,6 +18,9 @@ const MOVE_THRESH_SPEED := 34.0
 const WALK_FPS := 9.5
 const BODY_VISUAL_HEIGHT_PX := 46.0
 
+## Strip path -> matte-cleared atlas (AI sheets often bake light grey matte + checker as opaque RGB).
+var _strip_matte_cleared_cache: Dictionary = {}
+
 var character_id: StringName = &""
 var is_controlled: bool = false
 var is_meditating: bool = false
@@ -238,13 +241,15 @@ func _ensure_placeholder_sprite() -> void:
 	if not ResourceLoader.exists(path):
 		_use_polygon_fallback_texture_missing()
 		return
-	var tex: Texture2D = load(path) as Texture2D
-	if tex == null:
+	var tex_raw: Texture2D = load(path) as Texture2D
+	if tex_raw == null:
 		_use_polygon_fallback_texture_missing()
 		return
+	var tex: Texture2D = _texture_strip_with_cleared_matte(path, tex_raw)
 	_destroy_fallback_square()
 	_using_polygon_fallback = false
 	_body_sprite.visible = true
+	_body_sprite.material = null
 	_body_sprite.modulate = Color.WHITE
 	_body_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	var sf := _build_horizontal_strip_sprite_frames(tex, STRIP_COLUMNS)
@@ -262,12 +267,50 @@ func _ensure_placeholder_sprite() -> void:
 	_body_sprite.frame = 0
 
 
+func _texture_strip_with_cleared_matte(path: String, original: Texture2D) -> Texture2D:
+	if _strip_matte_cleared_cache.has(path):
+		return _strip_matte_cleared_cache[path]
+	var img: Image = original.get_image()
+	if img == null:
+		_strip_matte_cleared_cache[path] = original
+		return original
+	var dup: Image = img.duplicate() as Image
+	_clear_baked_matte_and_checker_pixels(dup)
+	var fixed: Texture2D = ImageTexture.create_from_image(dup)
+	_strip_matte_cleared_cache[path] = fixed
+	return fixed
+
+
+func _clear_baked_matte_and_checker_pixels(img: Image) -> void:
+	img.convert(Image.FORMAT_RGBA8)
+	var w: int = img.get_width()
+	var h: int = img.get_height()
+	for y_i in range(h):
+		for x_i in range(w):
+			var c: Color = img.get_pixel(x_i, y_i)
+			var lum: float = c.get_luminance()
+			var dv: float = maxf(maxf(c.r, c.g), c.b) - minf(minf(c.r, c.g), c.b)
+			var kill := false
+			## Nearly white/off-white matte framing the sprite.
+			if lum >= 0.93 and dv <= 0.12:
+				kill = true
+			## Bright neutral greys (light checker / glare).
+			elif lum >= 0.68 and dv <= 0.045:
+				kill = true
+			## Mid neutral greys (dark checker squares), tight chroma gate so tinted pixels stay.
+			elif lum >= 0.34 and lum <= 0.72 and dv <= 0.022:
+				kill = true
+			if kill:
+				img.set_pixel(x_i, y_i, Color(c.r, c.g, c.b, 0.0))
+
+
 func _use_polygon_fallback_texture_missing() -> void:
 	_using_polygon_fallback = true
-	_ensure_fallback_square()
 	if _body_sprite != null:
+		_body_sprite.material = null
 		_body_sprite.visible = false
 		_body_sprite.sprite_frames = null
+	_ensure_fallback_square()
 
 
 func _build_horizontal_strip_sprite_frames(tex: Texture2D, columns: int) -> SpriteFrames:
