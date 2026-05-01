@@ -7,16 +7,19 @@ const FRAME_H := 64
 const WALK_FRAME_COUNT := 4
 const DIR_COUNT := 8
 
+## 1/sqrt(2); must not use `.normalized()` here (not a constant expression for const arrays).
+const _INV_SQRT2 := 0.7071067811865476
+
 ## Clockwise from screen-down (south), matching typical top-down / oblique navigation.
 const FACING_ORDER: Array[Vector2] = [
 	Vector2.DOWN,
-	Vector2(1, 1).normalized(),
+	Vector2(_INV_SQRT2, _INV_SQRT2),
 	Vector2.RIGHT,
-	Vector2(1, -1).normalized(),
+	Vector2(_INV_SQRT2, -_INV_SQRT2),
 	Vector2.UP,
-	Vector2(-1, -1).normalized(),
+	Vector2(-_INV_SQRT2, -_INV_SQRT2),
 	Vector2.LEFT,
-	Vector2(-1, 1).normalized(),
+	Vector2(-_INV_SQRT2, _INV_SQRT2),
 ]
 
 const _C_SHADOW := Color(0.1, 0.12, 0.2, 0.42)
