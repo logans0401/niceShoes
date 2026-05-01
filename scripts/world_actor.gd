@@ -1,6 +1,8 @@
 extends "res://scripts/player_controller.gd"
 ## In-world body for a logged-in character; only one actor receives movement input at a time.
-## Placeholder silhouette strips (four archetypes × 4 walk frames); tinted from party card portrait color.
+## Placeholder silhouette strips (four archetypes × 4 walk frames). Card color is not multiplied onto
+## the sprite (that read as a solid tinted box around the art); fallback uses a small Polygon2D only
+## when textures are missing.
 
 signal meditation_resource_tick(character_id: StringName, kind: StringName, amount: float)
 
@@ -24,9 +26,10 @@ var _hunt_nav_active: bool = false
 var _med_hp_t: float = 0.0
 var _med_st_t: float = 0.0
 var _using_polygon_fallback: bool = false
+## Only when strip textures fail to load (same footprint as old Glyph).
+var _glyph_fallback: Polygon2D = null
 
 @onready var _cam: Camera2D = $Camera2D
-@onready var _glyph: Polygon2D = $Glyph
 @onready var _body_sprite: AnimatedSprite2D = $BodySprite
 @onready var _nav_agent: NavigationAgent2D = $NavigationAgent2D
 
@@ -52,11 +55,13 @@ func set_actor_id(id: StringName) -> void:
 
 func set_glyph_color(col: Color) -> void:
 	col.a = 1.0
-	if _using_polygon_fallback and _glyph != null:
-		_glyph.color = col
+	if _using_polygon_fallback:
+		_ensure_fallback_square()
+		if _glyph_fallback != null and is_instance_valid(_glyph_fallback):
+			_glyph_fallback.color = col
 	else:
-		## Tint greyscale sprites with card color (readable identity on the placeholder art).
-		_body_sprite.modulate = col.lightened(0.12)
+		## Full modulate with party ColorRect hues tints the whole sprite quad (matte reads as a box).
+		_body_sprite.modulate = Color.WHITE
 
 
 func set_meditating(on: bool) -> void:
@@ -206,6 +211,23 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 
+func _destroy_fallback_square() -> void:
+	if _glyph_fallback != null and is_instance_valid(_glyph_fallback):
+		_glyph_fallback.queue_free()
+	_glyph_fallback = null
+
+
+func _ensure_fallback_square() -> void:
+	if _glyph_fallback != null and is_instance_valid(_glyph_fallback):
+		_glyph_fallback.visible = true
+		return
+	_glyph_fallback = Polygon2D.new()
+	_glyph_fallback.polygon = PackedVector2Array([-14, -14, 14, -14, 14, 14, -14, 14])
+	_glyph_fallback.color = Color(0.92, 0.45, 0.32, 1)
+	add_child(_glyph_fallback)
+	move_child(_glyph_fallback, _body_sprite.get_index())
+
+
 func _ensure_placeholder_sprite() -> void:
 	if _body_sprite == null:
 		return
@@ -220,9 +242,10 @@ func _ensure_placeholder_sprite() -> void:
 	if tex == null:
 		_use_polygon_fallback_texture_missing()
 		return
+	_destroy_fallback_square()
 	_using_polygon_fallback = false
-	_glyph.visible = false
 	_body_sprite.visible = true
+	_body_sprite.modulate = Color.WHITE
 	_body_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	var sf := _build_horizontal_strip_sprite_frames(tex, STRIP_COLUMNS)
 	if sf == null:
@@ -241,8 +264,7 @@ func _ensure_placeholder_sprite() -> void:
 
 func _use_polygon_fallback_texture_missing() -> void:
 	_using_polygon_fallback = true
-	if _glyph != null:
-		_glyph.visible = true
+	_ensure_fallback_square()
 	if _body_sprite != null:
 		_body_sprite.visible = false
 		_body_sprite.sprite_frames = null

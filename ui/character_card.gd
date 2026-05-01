@@ -125,7 +125,7 @@ func is_filled() -> bool:
 	return _filled
 
 
-## Final tint shown on the card (portrait base × modulate); matches in-world glyph for testing.
+## Final tint shown on the card (portrait base × modulate); used for party card identity only.
 func get_display_portrait_color() -> Color:
 	return _portrait.color * _portrait.modulate
 

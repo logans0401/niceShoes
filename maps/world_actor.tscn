@@ -22,10 +22,5 @@ position_smoothing_speed = 8.0
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_body")
 
-[node name="Glyph" type="Polygon2D" parent="."]
-visible = false
-polygon = PackedVector2Array(-14, -14, 14, -14, 14, 14, -14, 14)
-color = Color(0.92, 0.45, 0.32, 1)
-
 [node name="BodySprite" type="AnimatedSprite2D" parent="."]
 position = Vector2(0, -4)
