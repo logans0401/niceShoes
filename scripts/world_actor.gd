@@ -1,8 +1,20 @@
 extends "res://scripts/player_controller.gd"
 ## In-world body for a logged-in character; only one actor receives movement input at a time.
-## Placeholder glyph is 32×32 px (one tile); collision is 28×28 for smoother navigation vs visuals.
+## Placeholder silhouette strips (four archetypes × 4 walk frames); tinted from party card portrait color.
 
 signal meditation_resource_tick(character_id: StringName, kind: StringName, amount: float)
+
+const ARCHETYPE_STRIPS: Array[String] = [
+	"res://assets/sprites/world/world_archetype_scholar_strip.png",
+	"res://assets/sprites/world/world_archetype_scout_strip.png",
+	"res://assets/sprites/world/world_archetype_knight_strip.png",
+	"res://assets/sprites/world/world_archetype_cleric_strip.png",
+]
+
+const STRIP_COLUMNS := 4
+const MOVE_THRESH_SPEED := 34.0
+const WALK_FPS := 9.5
+const BODY_VISUAL_HEIGHT_PX := 46.0
 
 var character_id: StringName = &""
 var is_controlled: bool = false
@@ -11,9 +23,11 @@ var _automation_velocity: Vector2 = Vector2.ZERO
 var _hunt_nav_active: bool = false
 var _med_hp_t: float = 0.0
 var _med_st_t: float = 0.0
+var _using_polygon_fallback: bool = false
 
 @onready var _cam: Camera2D = $Camera2D
 @onready var _glyph: Polygon2D = $Glyph
+@onready var _body_sprite: AnimatedSprite2D = $BodySprite
 @onready var _nav_agent: NavigationAgent2D = $NavigationAgent2D
 
 
@@ -24,15 +38,25 @@ func _ready() -> void:
 	if _nav_agent != null:
 		_nav_agent.path_desired_distance = 8.0
 		_nav_agent.target_desired_distance = 22.0
+	call_deferred(&"_ensure_placeholder_sprite")
+
+
+func _process(_delta: float) -> void:
+	_update_sprite_from_velocity()
 
 
 func set_actor_id(id: StringName) -> void:
 	character_id = id
+	call_deferred(&"_ensure_placeholder_sprite")
 
 
 func set_glyph_color(col: Color) -> void:
-	if _glyph != null:
+	col.a = 1.0
+	if _using_polygon_fallback and _glyph != null:
 		_glyph.color = col
+	else:
+		## Tint greyscale sprites with card color (readable identity on the placeholder art).
+		_body_sprite.modulate = col.lightened(0.12)
 
 
 func set_meditating(on: bool) -> void:
@@ -180,3 +204,80 @@ func _physics_process(delta: float) -> void:
 		return
 	velocity = velocity.move_toward(Vector2.ZERO, friction * delta)
 	move_and_slide()
+
+
+func _ensure_placeholder_sprite() -> void:
+	if _body_sprite == null:
+		return
+	if character_id == &"":
+		return
+	var idx: int = abs(String(character_id).hash()) % ARCHETYPE_STRIPS.size()
+	var path: String = ARCHETYPE_STRIPS[idx]
+	if not ResourceLoader.exists(path):
+		_use_polygon_fallback_texture_missing()
+		return
+	var tex: Texture2D = load(path) as Texture2D
+	if tex == null:
+		_use_polygon_fallback_texture_missing()
+		return
+	_using_polygon_fallback = false
+	_glyph.visible = false
+	_body_sprite.visible = true
+	_body_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	var sf := _build_horizontal_strip_sprite_frames(tex, STRIP_COLUMNS)
+	if sf == null:
+		_use_polygon_fallback_texture_missing()
+		return
+	_body_sprite.sprite_frames = sf
+	var fh: float = float(tex.get_height())
+	if fh >= 8.0:
+		var px: float = BODY_VISUAL_HEIGHT_PX / fh
+		_body_sprite.scale = Vector2(px, px)
+	_body_sprite.sprite_frames.set_animation_speed(&"walk", WALK_FPS)
+	_body_sprite.play(&"walk")
+	_body_sprite.playing = false
+	_body_sprite.frame = 0
+
+
+func _use_polygon_fallback_texture_missing() -> void:
+	_using_polygon_fallback = true
+	if _glyph != null:
+		_glyph.visible = true
+	if _body_sprite != null:
+		_body_sprite.visible = false
+		_body_sprite.sprite_frames = null
+
+
+func _build_horizontal_strip_sprite_frames(tex: Texture2D, columns: int) -> SpriteFrames:
+	if tex == null or columns < 1:
+		return null
+	var iw: int = tex.get_width()
+	var ih: int = tex.get_height()
+	var cw: int = int(floor(float(iw) / float(columns)))
+	if cw <= 0 or ih <= 0:
+		return null
+	var sf := SpriteFrames.new()
+	var anim := &"walk"
+	sf.add_animation(anim)
+	sf.set_animation_speed(anim, WALK_FPS)
+	sf.set_animation_loop(anim, true)
+	for col in range(columns):
+		var at := AtlasTexture.new()
+		at.atlas = tex
+		at.region = Rect2(col * cw, 0, cw, ih)
+		sf.add_frame(anim, at)
+	return sf
+
+
+func _update_sprite_from_velocity() -> void:
+	if _using_polygon_fallback or _body_sprite == null or _body_sprite.sprite_frames == null:
+		return
+	var speed: float = velocity.length()
+	if speed >= MOVE_THRESH_SPEED:
+		_body_sprite.flip_h = velocity.x < -2.0
+		if not _body_sprite.playing:
+			_body_sprite.play(&"walk")
+		_body_sprite.playing = true
+	else:
+		_body_sprite.playing = false
+		_body_sprite.frame = 0
