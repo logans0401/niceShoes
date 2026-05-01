@@ -1,25 +1,13 @@
 extends "res://scripts/player_controller.gd"
 ## In-world body for a logged-in character; only one actor receives movement input at a time.
-## Placeholder silhouette strips (four archetypes × 4 walk frames). Card color is not multiplied onto
-## the sprite (that read as a solid tinted box around the art); fallback uses a small Polygon2D only
-## when textures are missing.
+## Placeholder: one procedural 8-direction hero (colored stand / walk). Polygon2D fallback only if
+## sheet build fails.
 
 signal meditation_resource_tick(character_id: StringName, kind: StringName, amount: float)
 
-const ARCHETYPE_STRIPS: Array[String] = [
-	"res://assets/sprites/world/world_archetype_scholar_strip.png",
-	"res://assets/sprites/world/world_archetype_scout_strip.png",
-	"res://assets/sprites/world/world_archetype_knight_strip.png",
-	"res://assets/sprites/world/world_archetype_cleric_strip.png",
-]
-
-const STRIP_COLUMNS := 4
 const MOVE_THRESH_SPEED := 34.0
-const WALK_FPS := 9.5
+const WALK_CYCLE_HZ := 7.0
 const BODY_VISUAL_HEIGHT_PX := 46.0
-
-## Strip path -> matte-cleared atlas (AI sheets often bake light grey matte + checker as opaque RGB).
-var _strip_matte_cleared_cache: Dictionary = {}
 
 var character_id: StringName = &""
 var is_controlled: bool = false
@@ -29,6 +17,8 @@ var _hunt_nav_active: bool = false
 var _med_hp_t: float = 0.0
 var _med_st_t: float = 0.0
 var _using_polygon_fallback: bool = false
+var _last_face_dir: int = 2
+var _walk_phase_t: float = 0.0
 ## Only when strip textures fail to load (same footprint as old Glyph).
 var _glyph_fallback: Polygon2D = null
 
@@ -47,8 +37,8 @@ func _ready() -> void:
 	call_deferred(&"_ensure_placeholder_sprite")
 
 
-func _process(_delta: float) -> void:
-	_update_sprite_from_velocity()
+func _process(delta: float) -> void:
+	_update_sprite_from_velocity(delta)
 
 
 func set_actor_id(id: StringName) -> void:
@@ -63,7 +53,6 @@ func set_glyph_color(col: Color) -> void:
 		if _glyph_fallback != null and is_instance_valid(_glyph_fallback):
 			_glyph_fallback.color = col
 	else:
-		## Full modulate with party ColorRect hues tints the whole sprite quad (matte reads as a box).
 		_body_sprite.modulate = Color.WHITE
 
 
@@ -236,72 +225,24 @@ func _ensure_placeholder_sprite() -> void:
 		return
 	if character_id == &"":
 		return
-	var idx: int = abs(String(character_id).hash()) % ARCHETYPE_STRIPS.size()
-	var path: String = ARCHETYPE_STRIPS[idx]
-	if not ResourceLoader.exists(path):
+	var sf: SpriteFrames = WorldHeroSheetBuilder.get_sprite_frames()
+	if sf == null:
 		_use_polygon_fallback_texture_missing()
 		return
-	var tex_raw: Texture2D = load(path) as Texture2D
-	if tex_raw == null:
-		_use_polygon_fallback_texture_missing()
-		return
-	var tex: Texture2D = _texture_strip_with_cleared_matte(path, tex_raw)
 	_destroy_fallback_square()
 	_using_polygon_fallback = false
 	_body_sprite.visible = true
 	_body_sprite.material = null
 	_body_sprite.modulate = Color.WHITE
 	_body_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	var sf := _build_horizontal_strip_sprite_frames(tex, STRIP_COLUMNS)
-	if sf == null:
-		_use_polygon_fallback_texture_missing()
-		return
 	_body_sprite.sprite_frames = sf
-	var fh: float = float(tex.get_height())
+	var fh: float = float(WorldHeroSheetBuilder.FRAME_H)
 	if fh >= 8.0:
 		var px: float = BODY_VISUAL_HEIGHT_PX / fh
 		_body_sprite.scale = Vector2(px, px)
-	_body_sprite.sprite_frames.set_animation_speed(&"walk", WALK_FPS)
-	_body_sprite.play(&"walk")
+	_body_sprite.play(&"stand")
 	_body_sprite.pause()
-	_body_sprite.frame = 0
-
-
-func _texture_strip_with_cleared_matte(path: String, original: Texture2D) -> Texture2D:
-	if _strip_matte_cleared_cache.has(path):
-		return _strip_matte_cleared_cache[path]
-	var img: Image = original.get_image()
-	if img == null:
-		_strip_matte_cleared_cache[path] = original
-		return original
-	var dup: Image = img.duplicate() as Image
-	_clear_baked_matte_and_checker_pixels(dup)
-	var fixed: Texture2D = ImageTexture.create_from_image(dup)
-	_strip_matte_cleared_cache[path] = fixed
-	return fixed
-
-
-func _clear_baked_matte_and_checker_pixels(img: Image) -> void:
-	img.convert(Image.FORMAT_RGBA8)
-	var w: int = img.get_width()
-	var h: int = img.get_height()
-	for y_i in range(h):
-		for x_i in range(w):
-			var c: Color = img.get_pixel(x_i, y_i)
-			var lum: float = c.get_luminance()
-			var dv: float = maxf(maxf(c.r, c.g), c.b) - minf(minf(c.r, c.g), c.b)
-			var kill := false
-			## Nearly white/off-white matte framing the sprite.
-			if lum >= 0.93 and dv <= 0.12:
-				kill = true
-			## Bright neutral greys (light checker / glare).
-			elif lum >= 0.68 and dv <= 0.045:
-				kill = true
-			## Mid neutral greys (dark checker squares), tight chroma gate so tinted pixels stay.
-			elif lum >= 0.34 and lum <= 0.72 and dv <= 0.022:
-				kill = true
-			if kill:
-				img.set_pixel(x_i, y_i, Color(c.r, c.g, c.b, 0.0))
+	_body_sprite.frame = clampi(_last_face_dir, 0, WorldHeroSheetBuilder.DIR_COUNT - 1)
 
 
 func _use_polygon_fallback_texture_missing() -> void:
@@ -313,35 +254,41 @@ func _use_polygon_fallback_texture_missing() -> void:
 	_ensure_fallback_square()
 
 
-func _build_horizontal_strip_sprite_frames(tex: Texture2D, columns: int) -> SpriteFrames:
-	if tex == null or columns < 1:
-		return null
-	var iw: int = tex.get_width()
-	var ih: int = tex.get_height()
-	var cw: int = int(floor(float(iw) / float(columns)))
-	if cw <= 0 or ih <= 0:
-		return null
-	var sf := SpriteFrames.new()
-	var anim := &"walk"
-	sf.add_animation(anim)
-	sf.set_animation_speed(anim, WALK_FPS)
-	sf.set_animation_loop(anim, true)
-	for col in range(columns):
-		var at := AtlasTexture.new()
-		at.atlas = tex
-		at.region = Rect2(col * cw, 0, cw, ih)
-		sf.add_frame(anim, at)
-	return sf
+func _facing_velocity() -> Vector2:
+	var v := velocity
+	if is_controlled:
+		var inp: Vector2 = _movement_input()
+		if inp.length_squared() > 0.25:
+			return inp
+	if _hunt_nav_active and _nav_agent != null and not _nav_agent.is_navigation_finished():
+		var next_pos: Vector2 = _nav_agent.get_next_path_position()
+		v = next_pos - global_position
+	elif _automation_velocity.length_squared() > 4.0:
+		v = _automation_velocity
+	return v
 
 
-func _update_sprite_from_velocity() -> void:
+func _update_sprite_from_velocity(delta: float) -> void:
 	if _using_polygon_fallback or _body_sprite == null or _body_sprite.sprite_frames == null:
 		return
-	var speed: float = velocity.length()
-	if speed >= MOVE_THRESH_SPEED:
-		_body_sprite.flip_h = velocity.x < -2.0
-		if not _body_sprite.is_playing():
-			_body_sprite.play(&"walk")
+	var v: Vector2 = _facing_velocity()
+	var speed_v: float = velocity.length()
+
+	if v.length_squared() > 6.25:
+		_last_face_dir = WorldHeroSheetBuilder.direction_index_for_velocity(v)
+
+	var dir: int = clampi(_last_face_dir, 0, WorldHeroSheetBuilder.DIR_COUNT - 1)
+	if speed_v >= MOVE_THRESH_SPEED:
+		_walk_phase_t += delta * WALK_CYCLE_HZ
+		var wf: int = int(floorf(_walk_phase_t)) % WorldHeroSheetBuilder.WALK_FRAME_COUNT
+		var frame_i: int = dir * WorldHeroSheetBuilder.WALK_FRAME_COUNT + wf
+		frame_i = clampi(
+			frame_i, 0, WorldHeroSheetBuilder.WALK_FRAME_COUNT * WorldHeroSheetBuilder.DIR_COUNT - 1
+		)
+		_body_sprite.animation = &"walk"
+		_body_sprite.frame = frame_i
+		_body_sprite.flip_h = false
 	else:
-		_body_sprite.pause()
-		_body_sprite.frame = 0
+		_body_sprite.animation = &"stand"
+		_body_sprite.frame = dir
+		_body_sprite.flip_h = false
