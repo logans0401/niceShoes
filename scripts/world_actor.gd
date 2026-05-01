@@ -1,7 +1,6 @@
 extends "res://scripts/player_controller.gd"
 ## In-world body for a logged-in character; only one actor receives movement input at a time.
-## Placeholder: one procedural 8-direction hero (colored stand / walk). Polygon2D fallback only if
-## sheet build fails.
+## Placeholder sprite: authored 8-dir stand/walk atlases (see assets/sprites/world/world_hero_*.png).
 
 signal meditation_resource_tick(character_id: StringName, kind: StringName, amount: float)
 
@@ -236,7 +235,7 @@ func _ensure_placeholder_sprite() -> void:
 	_body_sprite.modulate = Color.WHITE
 	_body_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_body_sprite.sprite_frames = sf
-	var fh: float = float(WorldHeroSheetBuilder.FRAME_H)
+	var fh: float = float(WorldHeroSheetBuilder.get_native_frame_size().y)
 	if fh >= 8.0:
 		var px: float = BODY_VISUAL_HEIGHT_PX / fh
 		_body_sprite.scale = Vector2(px, px)
