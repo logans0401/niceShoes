@@ -1,23 +1,23 @@
 extends RefCounted
 class_name WorldHeroSheetBuilder
-## 8-dir stand + walk from authored PNG atlases (`assets/sprites/world/`).
-## Author sheets are often non-square cells (e.g. wide×short); each cell is cropped to a square
-## bottom-weighted so feet stay in-frame, then resized. Source atlases swap image columns for E/W vs
-## our logical facing vectors (see `_SOURCE_DIRECTION_INDEX`). Near-white/matte backgrounds are keyed out.
+## 8-dir stand + walk from PNG atlases. Grid dividers rarely match opaque pixels; we matte-scrub
+## the sheet, tighten each cell with an alpha bounding box, center the patch in a square, then resize.
 
 const PATH_STAND := "res://assets/sprites/world/world_hero_stand.png"
 const PATH_WALK := "res://assets/sprites/world/world_hero_walk.png"
 const DIR_COUNT := 8
 const WALK_FRAME_COUNT := 4
 
-## Canonical cell after normalization (readable on screen with world_actor BODY_VISUAL_HEIGHT_PX).
+## Canonical atlas cell after normalization.
 const TARGET_CELL_WIDTH := 96
 const TARGET_CELL_HEIGHT := 96
+
+const _ALPHA_CUTOFF := 0.085
 
 ## 1/sqrt(2); constant expressions only (GDScript parser).
 const _INV_SQRT2 := 0.7071067811865476
 
-## Clockwise from screen-down — must match atlas row/frame order baked into PNGs.
+## Clockwise from screen-down — must match logical facing vectors.
 const FACING_ORDER: Array[Vector2] = [
 	Vector2.DOWN,
 	Vector2(_INV_SQRT2, _INV_SQRT2),
@@ -29,11 +29,11 @@ const FACING_ORDER: Array[Vector2] = [
 	Vector2(-_INV_SQRT2, _INV_SQRT2),
 ]
 
-## Logical facing index -> column/row in source PNG layout (east/west were swapped vs movement).
-const _SOURCE_DIRECTION_INDEX: Array[int] = [0, 1, 6, 3, 4, 5, 2, 7]
+## Logical facing -> source atlas column / row index (east/west art swap in source).
+const _SOURCE_DIRECTION_INDEX := [0, 1, 6, 3, 4, 5, 2, 7]
 
-## Bump when atlas load/normalisation changes so static cache cannot serve stale visuals (editor hot reload).
-const _PIPELINE_VERSION := 4
+## Bump when atlas load/normalisation changes so static cache cannot serve stale visuals.
+const _PIPELINE_VERSION := 5
 
 static var _cached_pipeline_version: int = -1
 static var _cached_frames: SpriteFrames = null
@@ -59,8 +59,6 @@ static func get_sprite_frames() -> SpriteFrames:
 	var im_wk := _normalize_walk_atlas(raw_wk)
 	if im_st == null or im_wk == null:
 		return null
-	_scrub_near_white_matte(im_st)
-	_scrub_near_white_matte(im_wk)
 	var tex_stand := ImageTexture.create_from_image(im_st)
 	var tex_walk := ImageTexture.create_from_image(im_wk)
 	_cached_frames = _build_sprite_frames(tex_stand, tex_walk)
@@ -85,21 +83,33 @@ static func _normalize_stand_atlas(tex: Texture2D) -> Image:
 	if img == null:
 		return null
 	img.convert(Image.FORMAT_RGBA8)
+	_scrub_import_matte(img)
 	var w: int = img.get_width()
 	var h: int = img.get_height()
 	var cell_w: int = int(w / DIR_COUNT)
 	if cell_w <= 1 or h <= 1:
 		return null
-	var side: int = mini(cell_w, h)
-	## Bottom-weighted crop: heroes sit low in tall cells — center-cut clips feet.
-	var y0: int = int(maxi(0, h - side))
-	var out := Image.create(side * DIR_COUNT, side, false, Image.FORMAT_RGBA8)
+	var out := Image.create(
+		TARGET_CELL_WIDTH * DIR_COUNT, TARGET_CELL_HEIGHT, false, Image.FORMAT_RGBA8
+	)
 	out.fill(Color(0, 0, 0, 0))
 	for logical_i in range(DIR_COUNT):
 		var src_ix: int = int(_SOURCE_DIRECTION_INDEX[logical_i])
-		var rx := int(src_ix * cell_w + (cell_w - side) / 2)
-		out.blit_rect(img, Rect2i(rx, y0, side, side), Vector2i(logical_i * side, 0))
-	out.resize(TARGET_CELL_WIDTH * DIR_COUNT, TARGET_CELL_HEIGHT, Image.INTERPOLATE_NEAREST)
+		var cell := Rect2i(src_ix * cell_w, 0, cell_w, h)
+		var bbox := _opaque_bbox_within(img, cell)
+		var min_w := maxi(mini(32, cell_w / 6), 14)
+		if bbox.size.x < min_w or bbox.size.y < 14:
+			bbox = _fallback_bottom_square(cell)
+		elif bbox.size.y > bbox.size.x * 10:
+			bbox = _fallback_bottom_square(cell)
+		bbox = _clamp_rect_to_image(bbox, w, h)
+		var patch: Image = img.get_region(bbox)
+		var cell_img := _square_pack_resize(patch)
+		out.blit_rect(
+			cell_img,
+			Rect2i(0, 0, TARGET_CELL_WIDTH, TARGET_CELL_HEIGHT),
+			Vector2i(logical_i * TARGET_CELL_WIDTH, 0)
+		)
 	return out
 
 
@@ -108,30 +118,106 @@ static func _normalize_walk_atlas(tex: Texture2D) -> Image:
 	if img == null:
 		return null
 	img.convert(Image.FORMAT_RGBA8)
+	_scrub_import_matte(img)
 	var w: int = img.get_width()
 	var h: int = img.get_height()
 	var cw: int = int(w / WALK_FRAME_COUNT)
 	var ch: int = int(h / DIR_COUNT)
 	if cw <= 1 or ch <= 1:
 		return null
-	var side: int = mini(cw, ch)
-	var out := Image.create(side * WALK_FRAME_COUNT, side * DIR_COUNT, false, Image.FORMAT_RGBA8)
+	var out := Image.create(
+		TARGET_CELL_WIDTH * WALK_FRAME_COUNT,
+		TARGET_CELL_HEIGHT * DIR_COUNT,
+		false,
+		Image.FORMAT_RGBA8
+	)
 	out.fill(Color(0, 0, 0, 0))
 	for logical_row in range(DIR_COUNT):
 		var src_row: int = int(_SOURCE_DIRECTION_INDEX[logical_row])
-		var ry0: int = int(src_row * ch + maxi(0, ch - side))
+		var row_top: int = int(src_row * ch)
 		for f in range(WALK_FRAME_COUNT):
-			var rx := int(f * cw + (cw - side) / 2)
-			out.blit_rect(img, Rect2i(rx, ry0, side, side), Vector2i(f * side, logical_row * side))
-	out.resize(
-		TARGET_CELL_WIDTH * WALK_FRAME_COUNT,
-		TARGET_CELL_HEIGHT * DIR_COUNT,
-		Image.INTERPOLATE_NEAREST
-	)
+			var cell := Rect2i(f * cw, row_top, cw, ch)
+			var bbox := _opaque_bbox_within(img, cell)
+			var min_w := maxi(mini(32, cw / 6), 14)
+			if bbox.size.x < min_w or bbox.size.y < 14:
+				bbox = _fallback_bottom_square(cell)
+			elif bbox.size.y > bbox.size.x * 10:
+				bbox = _fallback_bottom_square(cell)
+			bbox = _clamp_rect_to_image(bbox, w, h)
+			var patch: Image = img.get_region(bbox)
+			var cell_img := _square_pack_resize(patch)
+			out.blit_rect(
+				cell_img,
+				Rect2i(0, 0, TARGET_CELL_WIDTH, TARGET_CELL_HEIGHT),
+				Vector2i(f * TARGET_CELL_WIDTH, logical_row * TARGET_CELL_HEIGHT)
+			)
 	return out
 
 
-static func _scrub_near_white_matte(img: Image) -> void:
+static func _opaque_bbox_within(img: Image, bounds: Rect2i) -> Rect2i:
+	var xa := bounds.position.x
+	var ya := bounds.position.y
+	var xb := bounds.position.x + bounds.size.x
+	var yb := bounds.position.y + bounds.size.y
+	var min_x := xb
+	var min_y := yb
+	var max_x := xa
+	var max_y := ya
+	var any := false
+	for y_i in range(ya, yb):
+		if y_i < 0 or y_i >= img.get_height():
+			continue
+		for x_i in range(xa, xb):
+			if x_i < 0 or x_i >= img.get_width():
+				continue
+			if img.get_pixel(x_i, y_i).a <= _ALPHA_CUTOFF:
+				continue
+			any = true
+			min_x = mini(min_x, x_i)
+			min_y = mini(min_y, y_i)
+			max_x = maxi(max_x, x_i)
+			max_y = maxi(max_y, y_i)
+	if not any:
+		return Rect2i(xa, ya, mini(4, bounds.size.x), mini(4, bounds.size.y))
+	return Rect2i(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1)
+
+
+static func _fallback_bottom_square(cell: Rect2i) -> Rect2i:
+	var s := mini(cell.size.x, cell.size.y)
+	s = maxi(s, 2)
+	var ox := cell.position.x + int((cell.size.x - s) / 2)
+	var oy := cell.position.y + int(maxi(0, cell.size.y - s))
+	return Rect2i(ox, oy, s, s)
+
+
+static func _clamp_rect_to_image(r: Rect2i, iw: int, ih: int) -> Rect2i:
+	if iw < 1 or ih < 1:
+		return r
+	var ax := clampi(r.position.x, 0, iw - 1)
+	var ay := clampi(r.position.y, 0, ih - 1)
+	var bx := clampi(r.position.x + r.size.x - 1, ax, iw - 1)
+	var by := clampi(r.position.y + r.size.y - 1, ay, ih - 1)
+	return Rect2i(ax, ay, bx - ax + 1, by - ay + 1)
+
+
+static func _square_pack_resize(patch: Image) -> Image:
+	var pw: int = patch.get_width()
+	var ph: int = patch.get_height()
+	if pw <= 1 or ph <= 1:
+		var empty := Image.create(TARGET_CELL_WIDTH, TARGET_CELL_HEIGHT, false, Image.FORMAT_RGBA8)
+		empty.fill(Color(0, 0, 0, 0))
+		return empty
+	var s: int = maxi(pw, ph)
+	var canvas := Image.create(s, s, false, Image.FORMAT_RGBA8)
+	canvas.fill(Color(0, 0, 0, 0))
+	var ox: int = int((s - pw) / 2)
+	var oy: int = int((s - ph) / 2)
+	canvas.blit_rect(patch, Rect2i(0, 0, pw, ph), Vector2i(ox, oy))
+	canvas.resize(TARGET_CELL_WIDTH, TARGET_CELL_HEIGHT, Image.INTERPOLATE_NEAREST)
+	return canvas
+
+
+static func _scrub_import_matte(img: Image) -> void:
 	img.convert(Image.FORMAT_RGBA8)
 	var w: int = img.get_width()
 	var h: int = img.get_height()
@@ -141,13 +227,12 @@ static func _scrub_near_white_matte(img: Image) -> void:
 			var lum: float = c.get_luminance()
 			var dv: float = maxf(maxf(c.r, c.g), c.b) - minf(minf(c.r, c.g), c.b)
 			var wipe := false
-			## Opaque/off-white matte / export background.
-			if c.a >= 0.94 and lum >= 0.90 and dv <= 0.08:
+			## Matte / faux-transparency filler (checker or white glue).
+			if c.a >= 0.94 and lum >= 0.90 and dv <= 0.10:
 				wipe = true
-			## Light grey checker/light matte (keep saturated pixels).
-			elif c.a >= 0.94 and lum >= 0.78 and lum <= 0.98 and dv <= 0.038:
+			elif c.a >= 0.94 and lum >= 0.75 and lum <= 0.99 and dv <= 0.048:
 				wipe = true
-			elif c.a >= 0.94 and lum >= 0.36 and lum <= 0.72 and dv <= 0.02:
+			elif c.a >= 0.94 and lum >= 0.33 and lum <= 0.75 and dv <= 0.028:
 				wipe = true
 			if wipe:
 				img.set_pixel(x_i, y_i, Color(0.0, 0.0, 0.0, 0.0))
