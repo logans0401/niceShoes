@@ -1,8 +1,9 @@
 extends RefCounted
 class_name WorldHeroSheetBuilder
 ## 8-dir stand + walk from authored PNG atlases (`assets/sprites/world/`).
-## Author sheets are often non-square cells (e.g. wide×short); each cell is cropped to a centered
-## square before downscaling so nearest-neighbour resize does not smear into flat “pancake” bands.
+## Author sheets are often non-square cells (e.g. wide×short); each cell is cropped to a square
+## bottom-weighted so feet stay in-frame, then resized. Source atlases swap image columns for E/W vs
+## our logical facing vectors (see `_SOURCE_DIRECTION_INDEX`). Near-white/matte backgrounds are keyed out.
 
 const PATH_STAND := "res://assets/sprites/world/world_hero_stand.png"
 const PATH_WALK := "res://assets/sprites/world/world_hero_walk.png"
@@ -28,8 +29,11 @@ const FACING_ORDER: Array[Vector2] = [
 	Vector2(-_INV_SQRT2, _INV_SQRT2),
 ]
 
+## Logical facing index -> column/row in source PNG layout (east/west were swapped vs movement).
+const _SOURCE_DIRECTION_INDEX: Array[int] = [0, 1, 6, 3, 4, 5, 2, 7]
+
 ## Bump when atlas load/normalisation changes so static cache cannot serve stale visuals (editor hot reload).
-const _PIPELINE_VERSION := 2
+const _PIPELINE_VERSION := 4
 
 static var _cached_pipeline_version: int = -1
 static var _cached_frames: SpriteFrames = null
@@ -55,6 +59,8 @@ static func get_sprite_frames() -> SpriteFrames:
 	var im_wk := _normalize_walk_atlas(raw_wk)
 	if im_st == null or im_wk == null:
 		return null
+	_scrub_near_white_matte(im_st)
+	_scrub_near_white_matte(im_wk)
 	var tex_stand := ImageTexture.create_from_image(im_st)
 	var tex_walk := ImageTexture.create_from_image(im_wk)
 	_cached_frames = _build_sprite_frames(tex_stand, tex_walk)
@@ -85,12 +91,14 @@ static func _normalize_stand_atlas(tex: Texture2D) -> Image:
 	if cell_w <= 1 or h <= 1:
 		return null
 	var side: int = mini(cell_w, h)
-	var y0: int = int(maxi(0, (h - side) / 2))
+	## Bottom-weighted crop: heroes sit low in tall cells — center-cut clips feet.
+	var y0: int = int(maxi(0, h - side))
 	var out := Image.create(side * DIR_COUNT, side, false, Image.FORMAT_RGBA8)
 	out.fill(Color(0, 0, 0, 0))
-	for i in range(DIR_COUNT):
-		var rx := int(i * cell_w + (cell_w - side) / 2)
-		out.blit_rect(img, Rect2i(rx, y0, side, side), Vector2i(i * side, 0))
+	for logical_i in range(DIR_COUNT):
+		var src_ix: int = int(_SOURCE_DIRECTION_INDEX[logical_i])
+		var rx := int(src_ix * cell_w + (cell_w - side) / 2)
+		out.blit_rect(img, Rect2i(rx, y0, side, side), Vector2i(logical_i * side, 0))
 	out.resize(TARGET_CELL_WIDTH * DIR_COUNT, TARGET_CELL_HEIGHT, Image.INTERPOLATE_NEAREST)
 	return out
 
@@ -109,17 +117,40 @@ static func _normalize_walk_atlas(tex: Texture2D) -> Image:
 	var side: int = mini(cw, ch)
 	var out := Image.create(side * WALK_FRAME_COUNT, side * DIR_COUNT, false, Image.FORMAT_RGBA8)
 	out.fill(Color(0, 0, 0, 0))
-	for d in range(DIR_COUNT):
+	for logical_row in range(DIR_COUNT):
+		var src_row: int = int(_SOURCE_DIRECTION_INDEX[logical_row])
+		var ry0: int = int(src_row * ch + maxi(0, ch - side))
 		for f in range(WALK_FRAME_COUNT):
 			var rx := int(f * cw + (cw - side) / 2)
-			var ry := int(d * ch + (ch - side) / 2)
-			out.blit_rect(img, Rect2i(rx, ry, side, side), Vector2i(f * side, d * side))
+			out.blit_rect(img, Rect2i(rx, ry0, side, side), Vector2i(f * side, logical_row * side))
 	out.resize(
 		TARGET_CELL_WIDTH * WALK_FRAME_COUNT,
 		TARGET_CELL_HEIGHT * DIR_COUNT,
 		Image.INTERPOLATE_NEAREST
 	)
 	return out
+
+
+static func _scrub_near_white_matte(img: Image) -> void:
+	img.convert(Image.FORMAT_RGBA8)
+	var w: int = img.get_width()
+	var h: int = img.get_height()
+	for y_i in range(h):
+		for x_i in range(w):
+			var c: Color = img.get_pixel(x_i, y_i)
+			var lum: float = c.get_luminance()
+			var dv: float = maxf(maxf(c.r, c.g), c.b) - minf(minf(c.r, c.g), c.b)
+			var wipe := false
+			## Opaque/off-white matte / export background.
+			if c.a >= 0.94 and lum >= 0.90 and dv <= 0.08:
+				wipe = true
+			## Light grey checker/light matte (keep saturated pixels).
+			elif c.a >= 0.94 and lum >= 0.78 and lum <= 0.98 and dv <= 0.038:
+				wipe = true
+			elif c.a >= 0.94 and lum >= 0.36 and lum <= 0.72 and dv <= 0.02:
+				wipe = true
+			if wipe:
+				img.set_pixel(x_i, y_i, Color(0.0, 0.0, 0.0, 0.0))
 
 
 static func _build_sprite_frames(stand_tex: Texture2D, walk_tex: Texture2D) -> SpriteFrames:
