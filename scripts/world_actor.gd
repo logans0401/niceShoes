@@ -235,7 +235,7 @@ func _ensure_placeholder_sprite() -> void:
 		_body_sprite.scale = Vector2(px, px)
 	_body_sprite.sprite_frames.set_animation_speed(&"walk", WALK_FPS)
 	_body_sprite.play(&"walk")
-	_body_sprite.playing = false
+	_body_sprite.pause()
 	_body_sprite.frame = 0
 
 
@@ -275,9 +275,8 @@ func _update_sprite_from_velocity() -> void:
 	var speed: float = velocity.length()
 	if speed >= MOVE_THRESH_SPEED:
 		_body_sprite.flip_h = velocity.x < -2.0
-		if not _body_sprite.playing:
+		if not _body_sprite.is_playing():
 			_body_sprite.play(&"walk")
-		_body_sprite.playing = true
 	else:
-		_body_sprite.playing = false
+		_body_sprite.pause()
 		_body_sprite.frame = 0
