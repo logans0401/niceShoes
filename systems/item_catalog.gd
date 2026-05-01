@@ -83,7 +83,9 @@ func _register_bootstrap_items() -> void:
 	sword.damage_max = 3
 	sword.damage_type = 0
 	sword.requirements = {"skill": "melee_combat", "rank": 0}
-	sword.modifiers = {"melee_defense_multiplier": 1.02, "melee_combat_multiplier": 1.03, "attack_speed_bonus": 0.0}
+	sword.modifiers = {
+		"melee_defense_multiplier": 1.02, "melee_combat_multiplier": 1.03, "attack_speed_bonus": 0.0
+	}
 	sword.buy_price = 80
 	sword.sell_price = 25
 	register_item(sword)
@@ -129,7 +131,11 @@ func _register_bootstrap_items() -> void:
 	bow.damage_max = 4
 	bow.damage_type = 1
 	bow.requirements = {"skill": "missile_combat", "rank": 0}
-	bow.modifiers = {"melee_defense_multiplier": 1.01, "missile_combat_multiplier": 1.03, "attack_range_tiles": 2.0}
+	bow.modifiers = {
+		"melee_defense_multiplier": 1.01,
+		"missile_combat_multiplier": 1.03,
+		"attack_range_tiles": 2.0
+	}
 	bow.buy_price = 70
 	bow.sell_price = 22
 	register_item(bow)
@@ -147,7 +153,11 @@ func _register_bootstrap_items() -> void:
 	xbow.damage_max = 5
 	xbow.damage_type = 1
 	xbow.requirements = {"skill": "missile_combat", "rank": 1}
-	xbow.modifiers = {"melee_defense_multiplier": 1.01, "missile_combat_multiplier": 1.04, "attack_range_tiles": 3.0}
+	xbow.modifiers = {
+		"melee_defense_multiplier": 1.01,
+		"missile_combat_multiplier": 1.04,
+		"attack_range_tiles": 3.0
+	}
 	xbow.buy_price = 95
 	xbow.sell_price = 30
 	register_item(xbow)

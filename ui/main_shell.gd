@@ -260,7 +260,9 @@ func _sorted_group_ids_for_ui() -> Array[StringName]:
 	var ids: Array[StringName] = []
 	for g in raw:
 		ids.append(StringName(g))
-	ids.sort_custom(func(a: StringName, b: StringName) -> bool: return String(a).nocasecmp_to(String(b)) < 0)
+	ids.sort_custom(
+		func(a: StringName, b: StringName) -> bool: return String(a).nocasecmp_to(String(b)) < 0
+	)
 	return ids
 
 
@@ -345,7 +347,9 @@ func _build_option_popup_theme(shell_theme: Theme) -> Theme:
 	elif ThemeDB.fallback_font != null:
 		t.set_font(&"font", &"PopupMenu", ThemeDB.fallback_font)
 	if shell_theme.has_font_size(&"font_size", &"PopupMenu"):
-		t.set_font_size(&"font_size", &"PopupMenu", shell_theme.get_font_size(&"font_size", &"PopupMenu"))
+		t.set_font_size(
+			&"font_size", &"PopupMenu", shell_theme.get_font_size(&"font_size", &"PopupMenu")
+		)
 	else:
 		t.set_font_size(&"font_size", &"PopupMenu", 14)
 	t.set_constant(&"outline_size", &"PopupMenu", 0)
@@ -487,11 +491,31 @@ func _setup_tab_buttons() -> void:
 	_btn_tab_skills.button_group = _tab_button_group
 	_btn_tab_quests.button_group = _tab_button_group
 	_btn_tab_automation.button_group = _tab_button_group
-	_btn_tab_inventory.toggled.connect(func(p: bool): if p: _apply_tab_index(0, true))
-	_btn_tab_attributes.toggled.connect(func(p: bool): if p: _apply_tab_index(1, true))
-	_btn_tab_skills.toggled.connect(func(p: bool): if p: _apply_tab_index(2, true))
-	_btn_tab_quests.toggled.connect(func(p: bool): if p: _apply_tab_index(3, true))
-	_btn_tab_automation.toggled.connect(func(p: bool): if p: _apply_tab_index(4, true))
+	_btn_tab_inventory.toggled.connect(
+		func(p: bool) -> void:
+			if p:
+				_apply_tab_index(0, true)
+	)
+	_btn_tab_attributes.toggled.connect(
+		func(p: bool) -> void:
+			if p:
+				_apply_tab_index(1, true)
+	)
+	_btn_tab_skills.toggled.connect(
+		func(p: bool) -> void:
+			if p:
+				_apply_tab_index(2, true)
+	)
+	_btn_tab_quests.toggled.connect(
+		func(p: bool) -> void:
+			if p:
+				_apply_tab_index(3, true)
+	)
+	_btn_tab_automation.toggled.connect(
+		func(p: bool) -> void:
+			if p:
+				_apply_tab_index(4, true)
+	)
 
 
 func _apply_tab_index(idx: int, _emit_feed: bool) -> void:
@@ -754,7 +778,7 @@ func _on_rename_confirmed() -> void:
 	_rename_target_id = &""
 	_refresh_party_cards()
 	_sync_world_actor_colors_from_cards()
-	_append_command_feed("[ui] Renamed to \"%s\"" % n, who)
+	_append_command_feed('[ui] Renamed to "%s"' % n, who)
 
 
 func _on_new_group_pressed() -> void:
@@ -771,8 +795,10 @@ func _on_new_group_pressed() -> void:
 	_refresh_follow_target_options()
 	_refresh_party_cards()
 	_append_command_feed(
-		"[ui] New group: %s — still on \"%s\"; use Party, ↑↓, or the drop-down to switch."
-		% [String(gid), String(_group_system.get_active_group_id())],
+		(
+			'[ui] New group: %s — still on "%s"; use Party, ↑↓, or the drop-down to switch.'
+			% [String(gid), String(_group_system.get_active_group_id())]
+		),
 	)
 
 
@@ -823,7 +849,9 @@ func _xp_share_recipient_ids(fallback_id: StringName) -> PackedStringArray:
 	return out
 
 
-func _award_kill_experience_split(base_xp: int, attacker_id: StringName, to_feed: bool, feed_prefix: String) -> void:
+func _award_kill_experience_split(
+	base_xp: int, attacker_id: StringName, to_feed: bool, feed_prefix: String
+) -> void:
 	if _progression == null or base_xp <= 0:
 		return
 	var recipients: PackedStringArray = _xp_share_recipient_ids(attacker_id)
@@ -832,7 +860,9 @@ func _award_kill_experience_split(base_xp: int, attacker_id: StringName, to_feed
 	if not _progression.has_method("distribute_experience_among"):
 		_progression.add_total_experience(attacker_id, base_xp)
 		if to_feed:
-			_append_command_feed("%s %s gained %d XP" % [feed_prefix, String(attacker_id), base_xp], attacker_id)
+			_append_command_feed(
+				"%s %s gained %d XP" % [feed_prefix, String(attacker_id), base_xp], attacker_id
+			)
 		return
 	const APPLY_SAME_MAP_BONUS: bool = true
 	_progression.distribute_experience_among(recipients, base_xp, APPLY_SAME_MAP_BONUS)
@@ -866,7 +896,10 @@ func _creation_points_remaining() -> int:
 	var cfg: CharacterBalanceConfig = _creation_balance_config()
 	var spent: int = 0
 	for attr in _Sch.ALL_ATTRIBUTES:
-		spent += int(_creation_alloc.get(attr, cfg.creation_attribute_floor)) - cfg.creation_attribute_floor
+		spent += (
+			int(_creation_alloc.get(attr, cfg.creation_attribute_floor))
+			- cfg.creation_attribute_floor
+		)
 	return cfg.creation_attribute_pool - spent
 
 
@@ -883,7 +916,10 @@ func _creation_max_slice_for_attribute(attr: String) -> int:
 
 ## Max rolled stat total (floor + slice cap).
 func _creation_max_allow_for_attribute(attr: String) -> int:
-	return _creation_balance_config().creation_attribute_floor + _creation_max_slice_for_attribute(attr)
+	return (
+		_creation_balance_config().creation_attribute_floor
+		+ _creation_max_slice_for_attribute(attr)
+	)
 
 
 func _refresh_creation_slider_ranges() -> void:
@@ -924,7 +960,11 @@ func _refresh_creation_increment_buttons() -> void:
 
 ## Read HSlider.Range values directly while the dialog is visible (value_changed unreliable for some setups).
 func _tick_creation_sliders_to_alloc_if_open() -> void:
-	if _creation_dialog == null or not is_instance_valid(_creation_dialog) or not _creation_dialog.visible:
+	if (
+		_creation_dialog == null
+		or not is_instance_valid(_creation_dialog)
+		or not _creation_dialog.visible
+	):
 		return
 	if _creation_sliders_by_attr.is_empty():
 		return
@@ -1027,7 +1067,8 @@ func _ensure_creation_dialog() -> void:
 	## GDScript supports %d / %f etc.; %g is not valid and breaks the whole %-format (placeholders stay visible).
 	hint.text = (
 		(
-			"Each slider is bonus points above the %d floor (%d ticks up to %d). Spend all %d creation points (bar or − / +). Skills: stretched attributes ÷ %.2f plus XP ranks."
+			"Each slider is bonus points above the %d floor (%d ticks up to %d). Spend all %d creation points "
+			+ "(bar or − / +). Skills: stretched attributes ÷ %.2f plus XP ranks."
 		)
 		% [
 			c0.creation_attribute_floor,
@@ -1170,8 +1211,14 @@ func _on_creation_confirmed() -> void:
 		cd.current_stamina = float(st0.get("max_stamina", 1.0))
 		cd.current_mana = float(st0.get("max_mana", 0.0))
 		_stats.invalidate(new_id)
-	if _creation_weapon_select != null and _inventory != null and _inventory.has_method("try_add_item"):
-		var widx: int = clampi(_creation_weapon_select.selected, 0, _creation_weapon_select.item_count - 1)
+	if (
+		_creation_weapon_select != null
+		and _inventory != null
+		and _inventory.has_method("try_add_item")
+	):
+		var widx: int = clampi(
+			_creation_weapon_select.selected, 0, _creation_weapon_select.item_count - 1
+		)
 		var wmeta: Variant = _creation_weapon_select.get_item_metadata(widx)
 		var wid: StringName = &""
 		if wmeta is StringName:
@@ -1195,7 +1242,7 @@ func _on_creation_confirmed() -> void:
 	_sync_runner_dropdown_to_id(_focus_character_id)
 	_populate_runner_options()
 	_refresh_follow_target_options()
-	_append_command_feed("[ui] Created \"%s\" — use Log in when ready to spawn them." % n, new_id)
+	_append_command_feed('[ui] Created "%s" — use Log in when ready to spawn them.' % n, new_id)
 
 
 func bind_inventory_ui(
@@ -1395,7 +1442,9 @@ func _sync_automation_external_predicates() -> void:
 				AutomationSystem.TaskType.COMPLETE_QUEST:
 					if _quest != null:
 						var qid := StringName(str(at.data.get("quest_id", "")))
-						at.data["external_done"] = _quest.get_state(qid) == QuestSystem.QuestState.COMPLETED
+						at.data["external_done"] = (
+							_quest.get_state(qid) == QuestSystem.QuestState.COMPLETED
+						)
 				AutomationSystem.TaskType.SEARCH_LOOT:
 					if cid != &"":
 						at.data["external_done"] = _inventory_satisfies_loot_filter(
@@ -1434,7 +1483,10 @@ func _tick_automation_vendor_commerce() -> void:
 		if tv == null or not tv is AutomationSystem.AutomationTask:
 			continue
 		var task: AutomationSystem.AutomationTask = tv as AutomationSystem.AutomationTask
-		if task.type == AutomationSystem.TaskType.SELL_EXCESS_LOOT and bool(task.data.get("merchant_pipeline", false)):
+		if (
+			task.type == AutomationSystem.TaskType.SELL_EXCESS_LOOT
+			and bool(task.data.get("merchant_pipeline", false))
+		):
 			task.data["use_external_completion"] = true
 			if bool(task.data.get("external_done", false)):
 				continue
@@ -1497,14 +1549,17 @@ func _tick_automation_support_evaluation() -> void:
 		prof_list.append(p)
 	if prof_list.is_empty():
 		return
-	AutomationSupportEvaluator.tick(
-		_automation,
-		_registry,
-		_stats,
-		_equipment,
-		prof_list,
-		_support_cool_downs_ms,
-		Callable(self, "_resolve_runner_to_character_id"),
+	(
+		AutomationSupportEvaluator
+		. tick(
+			_automation,
+			_registry,
+			_stats,
+			_equipment,
+			prof_list,
+			_support_cool_downs_ms,
+			Callable(self, "_resolve_runner_to_character_id"),
+		)
 	)
 
 
@@ -1565,7 +1620,10 @@ func _attack_context_for(attacker_id: StringName) -> Dictionary:
 		return out
 	var eq_details: Dictionary = {}
 	if _equipment.has_method("get_equipped_details"):
-		eq_details = _equipment.call("get_equipped_details", attacker_id, StringName(_Eq.SLOT_MAIN_HAND)) as Dictionary
+		eq_details = (
+			_equipment.call("get_equipped_details", attacker_id, StringName(_Eq.SLOT_MAIN_HAND))
+			as Dictionary
+		)
 	var kind: String = WeaponItemUtils.weapon_kind(def)
 	if kind == "melee":
 		out["mode"] = "melee"
@@ -1588,7 +1646,12 @@ func _attack_context_for(attacker_id: StringName) -> Dictionary:
 		var sel: StringName = StringName(str(sel_var))
 		var tier: int = 1
 		out["spell_tier"] = tier
-		if sel == &"" or data == null or not data.has_method(&"knows_spell") or not data.knows_spell(sel):
+		if (
+			sel == &""
+			or data == null
+			or not data.has_method(&"knows_spell")
+			or not data.knows_spell(sel)
+		):
 			out["mode"] = "casting_no_spell"
 			return out
 		if not MagicRules.is_offensive_bolt(sel):
@@ -1608,10 +1671,13 @@ func _attack_context_for(attacker_id: StringName) -> Dictionary:
 
 
 func _spell_mana_cost_for(attacker_id: StringName, spell_id: StringName, tier: int) -> int:
-	return MagicRules.spell_mana_cost_after_arcane_connection(
-		spell_id,
-		tier,
-		_arcane_connection_skill_for(attacker_id),
+	return (
+		MagicRules
+		. spell_mana_cost_after_arcane_connection(
+			spell_id,
+			tier,
+			_arcane_connection_skill_for(attacker_id),
+		)
 	)
 
 
@@ -1679,7 +1745,9 @@ func _on_assist_world_pulse(_runner_id: StringName, task: Variant) -> void:
 	if assist_ctx.get("mode", "none") in ["none", "casting_no_spell", "casting_support"]:
 		return
 	var ally_var: Variant = at.data.get("ally_character_id", &"")
-	var ally_id: StringName = ally_var as StringName if ally_var is StringName else StringName(str(ally_var))
+	var ally_id: StringName = (
+		ally_var as StringName if ally_var is StringName else StringName(str(ally_var))
+	)
 	var prey: Node2D = _pick_assist_enemy_for_runner(cid, ally_id)
 	if prey == null:
 		return
@@ -1692,7 +1760,9 @@ func _on_assist_world_pulse(_runner_id: StringName, task: Variant) -> void:
 		at.data["assist_last_strike_ms"] = now
 
 
-func _perform_melee_exchange(attacker_id: StringName, to_feed: bool, feed_prefix: String) -> Dictionary:
+func _perform_melee_exchange(
+	attacker_id: StringName, to_feed: bool, feed_prefix: String
+) -> Dictionary:
 	var outcome: Dictionary = {"handled": false, "struck": false, "killed": false}
 	if _combat == null or _registry == null or _stats == null or _equipment == null:
 		return outcome
@@ -1714,13 +1784,18 @@ func _perform_melee_exchange(attacker_id: StringName, to_feed: bool, feed_prefix
 	if mode == "casting_support":
 		outcome["handled"] = true
 		if to_feed:
-			_append_command_feed("%s Pick a combat bolt for auto-attack." % feed_prefix, attacker_id)
+			_append_command_feed(
+				"%s Pick a combat bolt for auto-attack." % feed_prefix, attacker_id
+			)
 		return outcome
 	var attacker: Node2D = _world_actor_by_id.get(attacker_id) as Node2D
 	if attacker == null:
 		outcome["handled"] = true
 		if to_feed:
-			_append_command_feed("%s Log in and select a character with a world body to attack." % feed_prefix, attacker_id)
+			_append_command_feed(
+				"%s Log in and select a character with a world body to attack." % feed_prefix,
+				attacker_id
+			)
 		return outcome
 	var atk_stats: Dictionary = _stats.get_effective_stats(attacker_id, data, _equipment)
 	var best: Node = null
@@ -1743,7 +1818,9 @@ func _perform_melee_exchange(attacker_id: StringName, to_feed: bool, feed_prefix
 			if to_feed:
 				_append_command_feed("%s No target in range." % feed_prefix, attacker_id)
 		return outcome
-	return _apply_pc_hit_on_enemy_node(attacker_id, data, atk_stats, best, ctx, to_feed, feed_prefix)
+	return _apply_pc_hit_on_enemy_node(
+		attacker_id, data, atk_stats, best, ctx, to_feed, feed_prefix
+	)
 
 
 func _perform_melee_against_node(
@@ -1762,7 +1839,9 @@ func _perform_melee_against_node(
 	var data: Resource = _registry.get_character(attacker_id)
 	if data == null:
 		return outcome
-	var ctx: Dictionary = ctx_snapshot if not ctx_snapshot.is_empty() else _attack_context_for(attacker_id)
+	var ctx: Dictionary = (
+		ctx_snapshot if not ctx_snapshot.is_empty() else _attack_context_for(attacker_id)
+	)
 	var mode: String = str(ctx.get("mode", "none"))
 	if mode == "none":
 		outcome["handled"] = true
@@ -1778,7 +1857,10 @@ func _perform_melee_against_node(
 	if attacker == null:
 		outcome["handled"] = true
 		if to_feed:
-			_append_command_feed("%s Log in and select a character with a world body to attack." % feed_prefix, attacker_id)
+			_append_command_feed(
+				"%s Log in and select a character with a world body to attack." % feed_prefix,
+				attacker_id
+			)
 		return outcome
 	var reach: float = float(ctx.get("range_px", _MELEE_RANGE_PX))
 	var r2: float = reach * reach
@@ -1798,7 +1880,10 @@ func _perform_melee_against_node(
 			)
 		outcome["handled"] = true
 		if to_feed:
-			_append_command_feed("%s Support spells target allies; combat bolts target enemies." % feed_prefix, attacker_id)
+			_append_command_feed(
+				"%s Support spells target allies; combat bolts target enemies." % feed_prefix,
+				attacker_id
+			)
 		return outcome
 	var atk_stats: Dictionary = _stats.get_effective_stats(attacker_id, data, _equipment)
 	if mode == "casting":
@@ -1806,7 +1891,9 @@ func _perform_melee_against_node(
 			if party_target_id == attacker_id:
 				outcome["handled"] = true
 				if to_feed:
-					_append_command_feed("%s Pick another character as the bolt target." % feed_prefix, attacker_id)
+					_append_command_feed(
+						"%s Pick another character as the bolt target." % feed_prefix, attacker_id
+					)
 				return outcome
 			return _apply_pc_offensive_spell_on_party_actor(
 				attacker_id,
@@ -1877,7 +1964,10 @@ func _apply_pc_hit_on_enemy_node(
 	outcome["struck"] = dmg > 0.0
 	outcome["killed"] = not survived
 	if to_feed:
-		_append_command_feed("%s %s hit %s for %.1f" % [feed_prefix, String(attacker_id), tgt_label, dmg], attacker_id)
+		_append_command_feed(
+			"%s %s hit %s for %.1f" % [feed_prefix, String(attacker_id), tgt_label, dmg],
+			attacker_id
+		)
 	if outcome["killed"] and _progression != null:
 		var xp_award: int = 15
 		if best.get_script() == _CombatTestEnemyScr:
@@ -1926,7 +2016,9 @@ func _apply_pc_offensive_spell_on_party_actor(
 		return outcome
 	outcome["handled"] = true
 	if to_feed:
-		var safe_line: String = "%s Friendly characters cannot be attacked or damaged." % feed_prefix
+		var safe_line: String = (
+			"%s Friendly characters cannot be attacked or damaged." % feed_prefix
+		)
 		_append_command_feed(safe_line, attacker_id)
 		_append_command_feed(safe_line, target_id)
 	return outcome
@@ -1951,7 +2043,9 @@ func _apply_pc_offensive_spell_on_party_actor(
 	outcome["struck"] = dmg > 0.0
 	outcome["killed"] = float(tdata.current_health) <= 0.0
 	if to_feed:
-		var bolt_line: String = "%s %s bolted %s for %.1f" % [feed_prefix, String(attacker_id), String(target_id), dmg]
+		var bolt_line: String = (
+			"%s %s bolted %s for %.1f" % [feed_prefix, String(attacker_id), String(target_id), dmg]
+		)
 		_append_command_feed(bolt_line, attacker_id)
 		_append_command_feed(bolt_line, target_id)
 	_refresh_hud_vitals()
@@ -2008,21 +2102,52 @@ func _apply_pc_support_spell_on_party_actor(
 				var amount: int = int(buff.get("amount", MagicRules.BUFF_AMOUNT))
 				match str(buff.get("kind", "")):
 					MagicRules.BUFF_KIND_ATTRIBUTE:
-						tdata.transient_attribute_bonus[target_key] = int(tdata.transient_attribute_bonus.get(target_key, 0)) + amount
+						tdata.transient_attribute_bonus[target_key] = (
+							int(tdata.transient_attribute_bonus.get(target_key, 0)) + amount
+						)
 					MagicRules.BUFF_KIND_SKILL:
-						tdata.transient_skill_bonus[target_key] = int(tdata.transient_skill_bonus.get(target_key, 0)) + amount
-				detail = "buffed %s on %s" % [str(buff.get("display_name", MagicRules.spell_display_name(spell_id))).trim_suffix(" Buff"), tname]
+						tdata.transient_skill_bonus[target_key] = (
+							int(tdata.transient_skill_bonus.get(target_key, 0)) + amount
+						)
+				detail = (
+					"buffed %s on %s"
+					% [
+						(
+							str(buff.get("display_name", MagicRules.spell_display_name(spell_id)))
+							. trim_suffix(" Buff")
+						),
+						tname
+					]
+				)
 			else:
 				var protection: Dictionary = MagicRules.protection_spell_definition(spell_id)
 				if not protection.is_empty():
 					match str(protection.get("kind", "")):
 						MagicRules.PROTECTION_KIND_ARMOR:
-							tdata.transient_armor_bonus = float(tdata.transient_armor_bonus) + float(protection.get("armor_bonus", MagicRules.ARMOR_PROTECTION_AMOUNT))
+							tdata.transient_armor_bonus = (
+								float(tdata.transient_armor_bonus)
+								+ float(
+									protection.get(
+										"armor_bonus", MagicRules.ARMOR_PROTECTION_AMOUNT
+									)
+								)
+							)
 						MagicRules.PROTECTION_KIND_DAMAGE_TYPE:
-							var damage_type: int = int(protection.get("damage_type", DamageTypes.Id.SLASHING))
+							var damage_type: int = int(
+								protection.get("damage_type", DamageTypes.Id.SLASHING)
+							)
 							var key: String = str(damage_type)
-							tdata.transient_damage_protection_percent[key] = float(tdata.transient_damage_protection_percent.get(key, 0.0)) + float(protection.get("percent", MagicRules.DAMAGE_TYPE_PROTECTION_PERCENT))
-					detail = "protected %s with %s" % [tname, MagicRules.spell_display_name(spell_id)]
+							tdata.transient_damage_protection_percent[key] = (
+								float(tdata.transient_damage_protection_percent.get(key, 0.0))
+								+ float(
+									protection.get(
+										"percent", MagicRules.DAMAGE_TYPE_PROTECTION_PERCENT
+									)
+								)
+							)
+					detail = (
+						"protected %s with %s" % [tname, MagicRules.spell_display_name(spell_id)]
+					)
 				else:
 					var mh3: float = float(tst.get("max_health", 1.0))
 					tdata.current_health = clampf(float(tdata.current_health) + 8.0, 0.0, mh3)
@@ -2061,9 +2186,15 @@ func try_enemy_melee_character(enemy: Node, victim_id: StringName) -> bool:
 		return false
 	if enemy == null or not (enemy is Node2D):
 		return false
-	if enemy.has_method("has_landed_hit_from") and not bool(enemy.call("has_landed_hit_from", victim_id)):
+	if (
+		enemy.has_method("has_landed_hit_from")
+		and not bool(enemy.call("has_landed_hit_from", victim_id))
+	):
 		return false
-	if not enemy.has_method("is_hostile_toward") or not bool(enemy.call("is_hostile_toward", victim_id)):
+	if (
+		not enemy.has_method("is_hostile_toward")
+		or not bool(enemy.call("is_hostile_toward", victim_id))
+	):
 		return false
 	var victim: Node2D = _world_actor_by_id.get(victim_id) as Node2D
 	if victim == null:
@@ -2094,13 +2225,17 @@ func _resolve_enemy_melee_exchange(enemy: Node2D, victim_id: StringName) -> void
 	var victim_node: Node2D = _world_actor_by_id.get(victim_id) as Node2D
 	var death_res: Dictionary = _combat.apply_vitals_damage(_registry, _stats, victim_id, dmg)
 	if bool(death_res.get("died", false)):
-		_handle_character_death(victim_id, (victim_node.global_position if victim_node != null else enemy.global_position))
+		_handle_character_death(
+			victim_id, victim_node.global_position if victim_node != null else enemy.global_position
+		)
 	if dmg > 0.0 and enemy.has_method("register_aggro_against"):
 		enemy.call("register_aggro_against", victim_id)
 	var elabel: String = str(enemy.name)
 	if elabel.is_empty():
 		elabel = "enemy"
-	_append_command_feed("[combat] %s hits %s for %.1f" % [elabel, String(victim_id), dmg], victim_id)
+	_append_command_feed(
+		"[combat] %s hits %s for %.1f" % [elabel, String(victim_id), dmg], victim_id
+	)
 	_refresh_hud_vitals()
 	_refresh_party_cards()
 
@@ -2141,7 +2276,13 @@ func _handle_character_death(character_id: StringName, world_position: Vector2) 
 	_sync_world_actors()
 	_refresh_login_button_states()
 	_refresh_panel_b_auxiliary()
-	_append_command_feed("[death] %s died. Corpse remains; log in again to continue with death penalty." % String(character_id), character_id)
+	_append_command_feed(
+		(
+			"[death] %s died. Corpse remains; log in again to continue with death penalty."
+			% String(character_id)
+		),
+		character_id
+	)
 
 
 func _spawn_corpse_marker(corpse_id: StringName, world_position: Vector2, label: String) -> void:
@@ -2154,7 +2295,9 @@ func _spawn_corpse_marker(corpse_id: StringName, world_position: Vector2, label:
 	node.global_position = world_position
 	node.add_to_group(&"loot_corpses")
 	var glyph := Polygon2D.new()
-	glyph.polygon = PackedVector2Array([Vector2(-12, -8), Vector2(12, -8), Vector2(12, 8), Vector2(-12, 8)])
+	glyph.polygon = PackedVector2Array(
+		[Vector2(-12, -8), Vector2(12, -8), Vector2(12, 8), Vector2(-12, 8)]
+	)
 	glyph.color = Color(0.45, 0.34, 0.18, 1.0)
 	node.add_child(glyph)
 	_actors_root.add_child(node)
@@ -2201,13 +2344,25 @@ func _prune_corpse_markers() -> void:
 
 func bind_progression_system(progression: Node, balance: Resource) -> void:
 	if _progression != null:
-		if _progression.has_signal("unspent_changed") and _progression.unspent_changed.is_connected(_on_progression_unspent):
+		if (
+			_progression.has_signal("unspent_changed")
+			and _progression.unspent_changed.is_connected(_on_progression_unspent)
+		):
 			_progression.unspent_changed.disconnect(_on_progression_unspent)
-		if _progression.has_signal("attribute_changed") and _progression.attribute_changed.is_connected(_on_progression_attr):
+		if (
+			_progression.has_signal("attribute_changed")
+			and _progression.attribute_changed.is_connected(_on_progression_attr)
+		):
 			_progression.attribute_changed.disconnect(_on_progression_attr)
-		if _progression.has_signal("skill_rank_changed") and _progression.skill_rank_changed.is_connected(_on_progression_skill):
+		if (
+			_progression.has_signal("skill_rank_changed")
+			and _progression.skill_rank_changed.is_connected(_on_progression_skill)
+		):
 			_progression.skill_rank_changed.disconnect(_on_progression_skill)
-		if _progression.has_signal("level_changed") and _progression.level_changed.is_connected(_on_progression_level):
+		if (
+			_progression.has_signal("level_changed")
+			and _progression.level_changed.is_connected(_on_progression_level)
+		):
 			_progression.level_changed.disconnect(_on_progression_level)
 	_progression = progression
 	_balance = balance
@@ -2229,13 +2384,17 @@ func _on_progression_unspent(_character_id: StringName, _new_unspent: int) -> vo
 	_refresh_hud_vitals()
 
 
-func _on_progression_attr(_character_id: StringName, _attribute_id: StringName, _new_value: int) -> void:
+func _on_progression_attr(
+	_character_id: StringName, _attribute_id: StringName, _new_value: int
+) -> void:
 	_rebuild_progression_panels()
 	_refresh_party_cards()
 	_refresh_hud_vitals()
 
 
-func _on_progression_skill(_character_id: StringName, _skill_id: StringName, _new_rank: int) -> void:
+func _on_progression_skill(
+	_character_id: StringName, _skill_id: StringName, _new_rank: int
+) -> void:
 	_rebuild_progression_panels()
 	_refresh_party_cards()
 	_refresh_hud_vitals()
@@ -2248,9 +2407,7 @@ func _on_progression_level(_character_id: StringName, _new_level: int) -> void:
 
 
 func bind_automation_system(
-	system: AutomationSystem,
-	registry: Node = null,
-	group_system: Node = null
+	system: AutomationSystem, registry: Node = null, group_system: Node = null
 ) -> void:
 	if _automation != null:
 		if _automation.queue_changed.is_connected(_on_automation_queue_changed):
@@ -2279,7 +2436,9 @@ func bind_automation_system(
 		_automation.status_logged.connect(_on_automation_status_logged)
 		_automation.hunt_world_pulse.connect(_on_hunt_world_pulse)
 		_automation.assist_world_pulse.connect(_on_assist_world_pulse)
-	_support_profile_list = load("res://data/default_automation_support_profiles.tres") as AutomationSupportProfileList
+	_support_profile_list = (
+		load("res://data/default_automation_support_profiles.tres") as AutomationSupportProfileList
+	)
 	if _support_profile_list == null:
 		_support_profile_list = AutomationSupportProfileListScr.new()
 	_sync_automation_preemption_checkbox()
@@ -2296,7 +2455,9 @@ func _sync_automation_preemption_checkbox() -> void:
 	if _chk_automation_queue_preemption == null or _automation == null:
 		return
 	_chk_automation_queue_preemption.set_block_signals(true)
-	_chk_automation_queue_preemption.button_pressed = _automation.queue_preempts_lower_priority_active
+	_chk_automation_queue_preemption.button_pressed = (
+		_automation.queue_preempts_lower_priority_active
+	)
 	_chk_automation_queue_preemption.set_block_signals(false)
 
 
@@ -2466,7 +2627,9 @@ func _tick_passive_mana_regen(delta: float) -> void:
 		_passive_mana_elapsed[cid] = acc
 
 
-func _on_world_actor_meditation_resource_tick(character_id: StringName, kind: StringName, amount: float) -> void:
+func _on_world_actor_meditation_resource_tick(
+	character_id: StringName, kind: StringName, amount: float
+) -> void:
 	if _registry == null:
 		return
 	var data: Resource = _registry.get_character(character_id)
@@ -2540,7 +2703,9 @@ func _on_bc_meditate_pressed() -> void:
 		return
 	var on: bool = not bool(wa.is_meditating)
 	wa.set_meditating(on)
-	_append_command_feed("[ui] Meditation %s for %s." % ["started" if on else "stopped", str(data.user_name)])
+	_append_command_feed(
+		"[ui] Meditation %s for %s." % ["started" if on else "stopped", str(data.user_name)]
+	)
 	_refresh_login_button_states()
 
 
@@ -2747,7 +2912,11 @@ func _sync_world_actor_colors_from_cards() -> void:
 		if cid == &"" or not _world_actor_by_id.has(cid):
 			continue
 		var node: Node = _world_actor_by_id[cid]
-		if node == null or not node.has_method("set_glyph_color") or not card.has_method("get_display_portrait_color"):
+		if (
+			node == null
+			or not node.has_method("set_glyph_color")
+			or not card.has_method("get_display_portrait_color")
+		):
 			continue
 		var c: Color = card.get_display_portrait_color()
 		c.a = 1.0
@@ -2791,17 +2960,20 @@ func _refresh_party_cards() -> void:
 			mn_max = maxf(mn, 1.0)
 		var display_name: String = str(data.user_name)
 		if card.has_method("bind_character"):
-			card.bind_character(
-				cid,
-				display_name,
-				hp,
-				hp_max,
-				st,
-				st_max,
-				mn,
-				mn_max,
-				_portrait_color_for(cid),
-				bool(data.is_logged_in),
+			(
+				card
+				. bind_character(
+					cid,
+					display_name,
+					hp,
+					hp_max,
+					st,
+					st_max,
+					mn,
+					mn_max,
+					_portrait_color_for(cid),
+					bool(data.is_logged_in),
+				)
 			)
 	for j in range(_party_cards.size()):
 		var c: Node = _party_cards[j]
@@ -2827,7 +2999,9 @@ func _prey_hunters_map() -> Dictionary:
 				prey = _find_nearest_enemy((node as Node2D).global_position)
 			elif at.type == AutomationSystem.TaskType.ASSIST_COMBAT:
 				var ally_var: Variant = at.data.get("ally_character_id", &"")
-				var ally_id: StringName = ally_var as StringName if ally_var is StringName else StringName(str(ally_var))
+				var ally_id: StringName = (
+					ally_var as StringName if ally_var is StringName else StringName(str(ally_var))
+				)
 				prey = _pick_assist_enemy_for_runner(cid, ally_id)
 			if prey == null or not is_instance_valid(prey):
 				continue
@@ -2889,27 +3063,37 @@ func _apply_follow_movement(_delta: float) -> void:
 					var prey: Node2D = _find_nearest_enemy((node as Node2D).global_position)
 					if prey != null:
 						var hunt_reach: float = _engagement_range_for_hunter(cid)
-						var diff_h: Vector2 = prey.global_position - (node as Node2D).global_position
+						var diff_h: Vector2 = (
+							prey.global_position - (node as Node2D).global_position
+						)
 						if diff_h.length() > hunt_reach * 0.92:
 							use_hunt_nav = true
 							node.set_hunt_navigation_active(true)
-							node.update_hunt_navigation_goal(_hunt_ring_goal_for(prey, cid, prey_hunters))
+							node.update_hunt_navigation_goal(
+								_hunt_ring_goal_for(prey, cid, prey_hunters)
+							)
 						else:
 							node.set_hunt_navigation_active(false)
 					else:
 						node.set_hunt_navigation_active(false)
 			elif at.type == AutomationSystem.TaskType.ASSIST_COMBAT:
 				var ally_var: Variant = at.data.get("ally_character_id", &"")
-				var ally_id: StringName = ally_var as StringName if ally_var is StringName else StringName(str(ally_var))
+				var ally_id: StringName = (
+					ally_var as StringName if ally_var is StringName else StringName(str(ally_var))
+				)
 				if node is Node2D and node.has_method("set_hunt_navigation_active"):
 					var prey_a: Node2D = _pick_assist_enemy_for_runner(cid, ally_id)
 					if prey_a != null:
 						var assist_reach: float = _engagement_range_for_hunter(cid)
-						var diff_a: Vector2 = prey_a.global_position - (node as Node2D).global_position
+						var diff_a: Vector2 = (
+							prey_a.global_position - (node as Node2D).global_position
+						)
 						if diff_a.length() > assist_reach * 0.92:
 							use_hunt_nav = true
 							node.set_hunt_navigation_active(true)
-							node.update_hunt_navigation_goal(_hunt_ring_goal_for(prey_a, cid, prey_hunters))
+							node.update_hunt_navigation_goal(
+								_hunt_ring_goal_for(prey_a, cid, prey_hunters)
+							)
 						else:
 							node.set_hunt_navigation_active(false)
 					else:
@@ -2917,7 +3101,10 @@ func _apply_follow_movement(_delta: float) -> void:
 			else:
 				if node.has_method("set_hunt_navigation_active"):
 					node.set_hunt_navigation_active(false)
-				if cid != _focus_character_id and at.type == AutomationSystem.TaskType.FOLLOW_CHARACTER:
+				if (
+					cid != _focus_character_id
+					and at.type == AutomationSystem.TaskType.FOLLOW_CHARACTER
+				):
 					var tid_var: Variant = at.data.get("target_character_id", &"")
 					var tid: StringName = &""
 					if tid_var is StringName:
@@ -2958,7 +3145,6 @@ func _apply_follow_movement(_delta: float) -> void:
 			node.set_automation_velocity(Vector2.ZERO)
 
 
-
 func _sync_follow_dropdown_selection_from_panel_b() -> void:
 	if _opt_follow_target == null:
 		return
@@ -2969,7 +3155,11 @@ func _sync_follow_dropdown_selection_from_panel_b() -> void:
 	var self_cid: StringName = _drafting_automation_character_id()
 	if self_cid == &"":
 		self_cid = _focus_character_id
-	if _selection_portrait_source == "world" and _selection_world_kind == "actor" and _selection_world_id != &"":
+	if (
+		_selection_portrait_source == "world"
+		and _selection_world_kind == "actor"
+		and _selection_world_id != &""
+	):
 		var cand: StringName = _selection_world_id
 		if cand != self_cid and _follow_roster_contains(cand):
 			want = cand
@@ -3048,13 +3238,18 @@ func _rebuild_attributes_panel() -> void:
 	var hdr := Label.new()
 	var xp_to_next: int = 0
 	if _balance != null and _balance.has_method("get_xp_to_next_level"):
-		xp_to_next = int(_balance.call("get_xp_to_next_level", int(data.total_experience), int(data.level)))
-	hdr.text = "Unspent XP: %d  ·  Lv.%d  ·  XP to next level: %d  ·  Total XP: %d" % [
-		int(data.unspent_experience),
-		int(data.level),
-		xp_to_next,
-		int(data.total_experience),
-	]
+		xp_to_next = int(
+			_balance.call("get_xp_to_next_level", int(data.total_experience), int(data.level))
+		)
+	hdr.text = (
+		"Unspent XP: %d  ·  Lv.%d  ·  XP to next level: %d  ·  Total XP: %d"
+		% [
+			int(data.unspent_experience),
+			int(data.level),
+			xp_to_next,
+			int(data.total_experience),
+		]
+	)
 	v.add_child(hdr)
 	var st_eff: Dictionary = {}
 	if _stats != null and _equipment != null:
@@ -3086,7 +3281,9 @@ func _rebuild_attributes_panel() -> void:
 		btn.text = "Raise · %d XP" % cost
 		btn.custom_minimum_size = Vector2(0, float(_PROGRESSION_RAISE_BTN_MIN_HEIGHT_PX))
 		btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		btn.disabled = cap >= int(_balance.max_attribute_value) or int(data.unspent_experience) < cost
+		btn.disabled = (
+			cap >= int(_balance.max_attribute_value) or int(data.unspent_experience) < cost
+		)
 		btn.pressed.connect(_on_buy_attribute_pressed.bind(StringName(attr)))
 		row.add_child(lbl)
 		row.add_child(btn)
@@ -3166,7 +3363,10 @@ func _on_buy_vital_pressed(vital_id: StringName) -> void:
 func _merged_skill_ranks_for_progression(data: Resource) -> Dictionary:
 	var merged: Dictionary = {}
 	for skill_id in _Sch.ALL_SKILLS:
-		merged[skill_id] = int(data.skill_levels.get(skill_id, 0)) + int(data.transient_skill_bonus.get(skill_id, 0))
+		merged[skill_id] = (
+			int(data.skill_levels.get(skill_id, 0))
+			+ int(data.transient_skill_bonus.get(skill_id, 0))
+		)
 	return merged
 
 
@@ -3188,9 +3388,12 @@ func _rebuild_skills_panel() -> void:
 		var st_sk: Dictionary = _stats.get_effective_stats(_focus_character_id, data, _equipment)
 		skill_mods = st_sk.get("skill_modifiers", {}) as Dictionary
 	elif _balance is CharacterBalanceConfig:
-		skill_mods = (_balance as CharacterBalanceConfig).get_all_skill_total_modifiers(
-			data.attributes,
-			_merged_skill_ranks_for_progression(data),
+		skill_mods = (
+			(_balance as CharacterBalanceConfig)
+			. get_all_skill_total_modifiers(
+				data.attributes,
+				_merged_skill_ranks_for_progression(data),
+			)
 		)
 	var sc := ScrollContainer.new()
 	sc.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -3205,13 +3408,18 @@ func _rebuild_skills_panel() -> void:
 	var hdr2 := Label.new()
 	var xp_to_next2: int = 0
 	if _balance != null and _balance.has_method("get_xp_to_next_level"):
-		xp_to_next2 = int(_balance.call("get_xp_to_next_level", int(data.total_experience), int(data.level)))
-	hdr2.text = "Unspent XP: %d  ·  Lv.%d  ·  XP to next level: %d  ·  Total XP: %d" % [
-		int(data.unspent_experience),
-		int(data.level),
-		xp_to_next2,
-		int(data.total_experience),
-	]
+		xp_to_next2 = int(
+			_balance.call("get_xp_to_next_level", int(data.total_experience), int(data.level))
+		)
+	hdr2.text = (
+		"Unspent XP: %d  ·  Lv.%d  ·  XP to next level: %d  ·  Total XP: %d"
+		% [
+			int(data.unspent_experience),
+			int(data.level),
+			xp_to_next2,
+			int(data.total_experience),
+		]
+	)
 	v.add_child(hdr2)
 	for sk in _Sch.ALL_SKILLS:
 		var row := HBoxContainer.new()
@@ -3224,7 +3432,9 @@ func _rebuild_skills_panel() -> void:
 		var sk_purchases: int = int(data.skill_xp_purchases.get(sk, 0))
 		var cost: int = _balance.get_unspent_cost_raise_skill(sk_purchases)
 		var lbl := Label.new()
-		var line: String = "%s   %.2f   (ranks %d" % [_pretty_skill_label(sk), mod_total, bought_rank]
+		var line: String = (
+			"%s   %.2f   (ranks %d" % [_pretty_skill_label(sk), mod_total, bought_rank]
+		)
 		if buff_rank != 0:
 			line += " +%d buff" % buff_rank
 		line += ")"
@@ -3287,7 +3497,10 @@ func _ensure_automation_tab_controls() -> void:
 	v.add_theme_constant_override("separation", 8)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var hint := Label.new()
-	hint.text = "Pick a task, Add to queue, then Begin. When Follow is selected, choose a party follow target below; if B.b has a followable ally, that entry is selected by default."
+	hint.text = (
+		"Pick a task, Add to queue, then Begin. When Follow is selected, choose a party follow target "
+		+ "below; if B.b has a followable ally, that entry is selected by default."
+	)
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(hint)
 	_lbl_automation_context = Label.new()
@@ -3301,7 +3514,9 @@ func _ensure_automation_tab_controls() -> void:
 	_chk_automation_queue_preemption = CheckBox.new()
 	_chk_automation_queue_preemption.text = "Higher queue priority may preempt interruptible tasks"
 	if _automation != null:
-		_chk_automation_queue_preemption.button_pressed = _automation.queue_preempts_lower_priority_active
+		_chk_automation_queue_preemption.button_pressed = (
+			_automation.queue_preempts_lower_priority_active
+		)
 	_chk_automation_queue_preemption.toggled.connect(_on_automation_queue_preemption_toggled)
 	v.add_child(_chk_automation_queue_preemption)
 	var row_pick := HBoxContainer.new()
@@ -3342,17 +3557,15 @@ func _ensure_automation_tab_controls() -> void:
 	_opt_automation_preset = OptionButton.new()
 	_opt_automation_preset.custom_minimum_size = Vector2(260, 0)
 	_opt_automation_preset.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for row in (
-		[
-			["— choose template —", 0],
-			["Melee: simulated hunt grind", 1],
-			["Follow backbone", 2],
-			["Follow + reactive support thresholds", 3],
-			["Vendor sell (merchant pipeline)", 4],
-			["Complete tracked quest", 5],
-			["Find scrap sample in bag", 6],
-		]
-	):
+	for row in [
+		["— choose template —", 0],
+		["Melee: simulated hunt grind", 1],
+		["Follow backbone", 2],
+		["Follow + reactive support thresholds", 3],
+		["Vendor sell (merchant pipeline)", 4],
+		["Complete tracked quest", 5],
+		["Find scrap sample in bag", 6],
+	]:
 		var title: String = row[0] as String
 		var preset_meta: int = int(row[1])
 		_opt_automation_preset.add_item(title)
@@ -3594,13 +3807,19 @@ func _refresh_automation_context_label() -> void:
 	var self_cid: StringName = _drafting_automation_character_id()
 	if self_cid != &"":
 		lines.append("World body for runner: %s" % String(self_cid))
-	if _selection_portrait_source == "world" and _selection_world_kind == "actor" and _selection_world_id != &"":
+	if (
+		_selection_portrait_source == "world"
+		and _selection_world_kind == "actor"
+		and _selection_world_id != &""
+	):
 		var nm: String = String(_selection_world_id)
 		if _registry != null:
 			var dres: Resource = _registry.get_character(_selection_world_id)
 			if dres != null:
 				nm = str(dres.user_name)
-		lines.append("B.b: %s (%s) — used for Follow / Assist target" % [nm, String(_selection_world_id)])
+		lines.append(
+			"B.b: %s (%s) — used for Follow / Assist target" % [nm, String(_selection_world_id)]
+		)
 	elif _selection_portrait_source == "world" and _selection_world_kind == "enemy":
 		lines.append("B.b: enemy — not valid as Follow / Assist ally")
 	else:
@@ -3672,7 +3891,9 @@ func _grant_all_spell_scrolls_for_testing(character_id: StringName) -> void:
 		_inventory.try_add_item(character_id, iid, 1)
 
 
-func _on_inventory_slot_context_menu_requested(kind: String, payload: Dictionary, at_global: Vector2) -> void:
+func _on_inventory_slot_context_menu_requested(
+	kind: String, payload: Dictionary, at_global: Vector2
+) -> void:
 	var sel: Dictionary = {}
 	if kind == "bag":
 		var idx: int = int(payload.get("index", -1))
@@ -3684,17 +3905,35 @@ func _on_inventory_slot_context_menu_requested(kind: String, payload: Dictionary
 				var d: Dictionary = cell as Dictionary
 				iid = String(_cell_item_id(d))
 				qty = int(d.get("quantity", 1))
-				sel = {"source": "bag", "index": idx, "item_id": iid, "instance_id": String(d.get("instance_id", "")), "quantity": qty}
+				sel = {
+					"source": "bag",
+					"index": idx,
+					"item_id": iid,
+					"instance_id": String(d.get("instance_id", "")),
+					"quantity": qty
+				}
 		if sel.is_empty():
-			sel = {"source": "bag", "index": idx, "item_id": iid, "instance_id": "", "quantity": qty}
+			sel = {
+				"source": "bag", "index": idx, "item_id": iid, "instance_id": "", "quantity": qty
+			}
 	elif kind == "equip":
 		var slot_s: String = String(payload.get("equip_slot", ""))
 		var eiid: String = ""
 		var ekey: String = ""
 		if _equipment != null and _focus_character_id != &"" and not slot_s.is_empty():
 			eiid = String(_equipment.get_equipped_item(_focus_character_id, StringName(slot_s)))
-			ekey = String(_equipment.call("get_equipped_key", _focus_character_id, StringName(slot_s))) if _equipment.has_method("get_equipped_key") else eiid
-		sel = {"source": "equip", "equip_slot": slot_s, "item_id": eiid, "instance_id": ekey, "quantity": 1}
+			ekey = (
+				String(_equipment.call("get_equipped_key", _focus_character_id, StringName(slot_s)))
+				if _equipment.has_method("get_equipped_key")
+				else eiid
+			)
+		sel = {
+			"source": "equip",
+			"equip_slot": slot_s,
+			"item_id": eiid,
+			"instance_id": ekey,
+			"quantity": 1
+		}
 	else:
 		return
 	if _inventory_panel != null and _inventory_panel.has_method(&"set_programmatic_selection"):
@@ -3744,15 +3983,23 @@ func _show_selection_context_menu_at(global_position: Vector2) -> void:
 				added += 1
 		pm.add_item("Inspect", _SEL_CTX_INSPECT)
 		added += 1
-	elif _selection_portrait_source == "world" and _selection_world_kind != "none" and _selection_world_node != null:
+	elif (
+		_selection_portrait_source == "world"
+		and _selection_world_kind != "none"
+		and _selection_world_node != null
+	):
 		pm.add_item("Inspect", _SEL_CTX_INSPECT)
 		added += 1
 		if _selection_world_kind == "enemy":
 			var ctx: Dictionary = _attack_context_for(_focus_character_id)
 			var mode: String = str(ctx.get("mode", "none"))
 			var can_strike: bool = mode in ["melee", "missile", "casting"]
-			var casting: bool = WeaponItemUtils.is_casting_weapon(WeaponItemUtils.main_hand_definition(_focus_character_id, _equipment, _catalog))
-			var cast_busy: bool = _spell_cast_busy and _spell_cast_attacker_id == _focus_character_id
+			var casting: bool = WeaponItemUtils.is_casting_weapon(
+				WeaponItemUtils.main_hand_definition(_focus_character_id, _equipment, _catalog)
+			)
+			var cast_busy: bool = (
+				_spell_cast_busy and _spell_cast_attacker_id == _focus_character_id
+			)
 			var atk_lbl: String = (
 				"Casting…"
 				if (casting and cast_busy)
@@ -3766,13 +4013,18 @@ func _show_selection_context_menu_at(global_position: Vector2) -> void:
 		elif _selection_world_kind == "actor":
 			var ctx_a: Dictionary = _attack_context_for(_focus_character_id)
 			var mode_a: String = str(ctx_a.get("mode", "none"))
-			var casting_a: bool = WeaponItemUtils.is_casting_weapon(
-				WeaponItemUtils.main_hand_definition(_focus_character_id, _equipment, _catalog),
+			var casting_a: bool = (
+				WeaponItemUtils
+				. is_casting_weapon(
+					WeaponItemUtils.main_hand_definition(_focus_character_id, _equipment, _catalog),
+				)
 			)
 			var cast_on_actor: bool = casting_a and mode_a == "casting_support"
 			if cast_on_actor:
 				var can_cast_a: bool = mode_a == "casting_support" or mode_a == "casting"
-				var cast_busy_a: bool = _spell_cast_busy and _spell_cast_attacker_id == _focus_character_id
+				var cast_busy_a: bool = (
+					_spell_cast_busy and _spell_cast_attacker_id == _focus_character_id
+				)
 				var atk_lbl_a: String = "Casting…" if cast_busy_a else "Cast"
 				pm.add_item(atk_lbl_a, _SEL_CTX_ATTACK_CAST)
 				var atk_ix_a: int = pm.get_item_index(_SEL_CTX_ATTACK_CAST)
@@ -3831,37 +4083,47 @@ func _open_corpse_loot_dialog(corpse_id: StringName) -> void:
 	item_menu.id_pressed.connect(_on_loot_item_context_inspect)
 	dlg.add_child(item_menu)
 	_refresh_corpse_loot_list(list, corpse_id)
-	list.item_clicked.connect(func(index: int, at_position: Vector2, mouse_button_index: int) -> void:
-		if mouse_button_index != MOUSE_BUTTON_RIGHT:
-			return
-		var slot: int = int(list.get_item_metadata(index))
-		var bag: Array = _corpse.get_corpse_bag(corpse_id)
-		if slot < 0 or slot >= bag.size() or bag[slot] == null:
-			return
-		_loot_context_item_desc = _cell_description(bag[slot] as Dictionary)
-		item_menu.position = Vector2i(list.get_screen_position() + at_position)
-		item_menu.reset_size()
-		item_menu.popup()
+	list.item_clicked.connect(
+		func(index: int, at_position: Vector2, mouse_button_index: int) -> void:
+			if mouse_button_index != MOUSE_BUTTON_RIGHT:
+				return
+			var slot: int = int(list.get_item_metadata(index))
+			var bag: Array = _corpse.get_corpse_bag(corpse_id)
+			if slot < 0 or slot >= bag.size() or bag[slot] == null:
+				return
+			_loot_context_item_desc = _cell_description(bag[slot] as Dictionary)
+			item_menu.position = Vector2i(list.get_screen_position() + at_position)
+			item_menu.reset_size()
+			item_menu.popup()
 	)
 	root.add_child(list)
 	var btn := Button.new()
 	btn.text = "Loot selected"
-	btn.pressed.connect(func() -> void:
-		var sel: PackedInt32Array = list.get_selected_items()
-		if sel.is_empty():
-			return
-		var slot: int = int(list.get_item_metadata(sel[0]))
-		_sync_trade_positions_from_world()
-		var err: Error = _corpse.loot_bag_slot_to_character(_focus_character_id, corpse_id, slot)
-		if err == OK:
-			_append_command_feed("[loot] Took item from corpse.", _focus_character_id)
-			_refresh_corpse_loot_list(list, corpse_id)
-			if list.item_count <= 0:
-				dlg.queue_free()
-			_refresh_selection_portrait()
-		else:
-			var reason: String = _corpse.get_last_loot_failure_reason() if _corpse.has_method("get_last_loot_failure_reason") else "range/bag/full"
-			_append_command_feed("[loot] Could not loot corpse (%s)." % reason, _focus_character_id)
+	btn.pressed.connect(
+		func() -> void:
+			var sel: PackedInt32Array = list.get_selected_items()
+			if sel.is_empty():
+				return
+			var slot: int = int(list.get_item_metadata(sel[0]))
+			_sync_trade_positions_from_world()
+			var err: Error = _corpse.loot_bag_slot_to_character(
+				_focus_character_id, corpse_id, slot
+			)
+			if err == OK:
+				_append_command_feed("[loot] Took item from corpse.", _focus_character_id)
+				_refresh_corpse_loot_list(list, corpse_id)
+				if list.item_count <= 0:
+					dlg.queue_free()
+				_refresh_selection_portrait()
+			else:
+				var reason: String = (
+					_corpse.get_last_loot_failure_reason()
+					if _corpse.has_method("get_last_loot_failure_reason")
+					else "range/bag/full"
+				)
+				_append_command_feed(
+					"[loot] Could not loot corpse (%s)." % reason, _focus_character_id
+				)
 	)
 	root.add_child(btn)
 	dlg.add_child(root)
@@ -3916,7 +4178,9 @@ func _open_merchant_trade_dialog(merchant_id: StringName) -> void:
 	root.custom_minimum_size = Vector2(620, 320)
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var trader_data: Resource = _registry.get_character(_focus_character_id) if _registry != null else null
+	var trader_data: Resource = (
+		_registry.get_character(_focus_character_id) if _registry != null else null
+	)
 	var currency_lbl := Label.new()
 	currency_lbl.text = "Currency: %d" % (int(trader_data.gold) if trader_data != null else 0)
 	var buy_col := VBoxContainer.new()
@@ -3934,30 +4198,43 @@ func _open_merchant_trade_dialog(merchant_id: StringName) -> void:
 		var def: Resource = _catalog.get_definition(item_id)
 		if def == null:
 			continue
-		var row: int = stock_list.add_item("%s  %dg  (stock %d)" % [str(def.display_name), int(def.buy_price), int(entry.get("quantity", 0))])
+		var row: int = stock_list.add_item(
+			(
+				"%s  %dg  (stock %d)"
+				% [str(def.display_name), int(def.buy_price), int(entry.get("quantity", 0))]
+			)
+		)
 		stock_list.set_item_metadata(row, item_id)
-	stock_list.item_clicked.connect(func(index: int, _at_position: Vector2, mouse_button_index: int) -> void:
-		if mouse_button_index != MOUSE_BUTTON_RIGHT:
-			return
-		var item_id: StringName = StringName(str(stock_list.get_item_metadata(index)))
-		_show_item_inspect_dialog(_static_item_description(item_id))
+	stock_list.item_clicked.connect(
+		func(index: int, _at_position: Vector2, mouse_button_index: int) -> void:
+			if mouse_button_index != MOUSE_BUTTON_RIGHT:
+				return
+			var item_id: StringName = StringName(str(stock_list.get_item_metadata(index)))
+			_show_item_inspect_dialog(_static_item_description(item_id))
 	)
 	var buy_btn := Button.new()
 	buy_btn.text = "Buy selected"
-	buy_btn.pressed.connect(func() -> void:
-		var sel: PackedInt32Array = stock_list.get_selected_items()
-		if sel.is_empty():
-			return
-		var item_id: StringName = StringName(str(stock_list.get_item_metadata(sel[0])))
-		var err: Error = _merchant.buy_item(_focus_character_id, merchant_id, item_id, 1)
-		if err == OK:
-			_append_command_feed("[trade] Bought %s." % String(item_id), _focus_character_id)
-			var refreshed_data: Resource = _registry.get_character(_focus_character_id) if _registry != null else null
-			currency_lbl.text = "Currency: %d" % (int(refreshed_data.gold) if refreshed_data != null else 0)
-			if _inventory_panel != null and _inventory_panel.has_method("refresh"):
-				_inventory_panel.refresh()
-		else:
-			_append_command_feed("[trade] Could not buy %s." % String(item_id), _focus_character_id)
+	buy_btn.pressed.connect(
+		func() -> void:
+			var sel: PackedInt32Array = stock_list.get_selected_items()
+			if sel.is_empty():
+				return
+			var item_id: StringName = StringName(str(stock_list.get_item_metadata(sel[0])))
+			var err: Error = _merchant.buy_item(_focus_character_id, merchant_id, item_id, 1)
+			if err == OK:
+				_append_command_feed("[trade] Bought %s." % String(item_id), _focus_character_id)
+				var refreshed_data: Resource = (
+					_registry.get_character(_focus_character_id) if _registry != null else null
+				)
+				currency_lbl.text = (
+					"Currency: %d" % (int(refreshed_data.gold) if refreshed_data != null else 0)
+				)
+				if _inventory_panel != null and _inventory_panel.has_method("refresh"):
+					_inventory_panel.refresh()
+			else:
+				_append_command_feed(
+					"[trade] Could not buy %s." % String(item_id), _focus_character_id
+				)
 	)
 	buy_col.add_child(stock_list)
 	buy_col.add_child(buy_btn)
@@ -3975,37 +4252,47 @@ func _open_merchant_trade_dialog(merchant_id: StringName) -> void:
 			continue
 		var d: Dictionary = cell as Dictionary
 		var desc: Dictionary = _cell_description(d)
-		var row2: int = bag_list.add_item("%02d  %s x%d  %dg" % [
-			i,
-			str(desc.get("display_name", String(_cell_item_id(d)))),
-			int(d.get("quantity", 1)),
-			int(desc.get("value", 0)),
-		])
+		var row2: int = (
+			bag_list
+			. add_item(
+				(
+					"%02d  %s x%d  %dg"
+					% [
+						i,
+						str(desc.get("display_name", String(_cell_item_id(d)))),
+						int(d.get("quantity", 1)),
+						int(desc.get("value", 0)),
+					]
+				)
+			)
+		)
 		bag_list.set_item_metadata(row2, i)
-	bag_list.item_clicked.connect(func(index: int, _at_position: Vector2, mouse_button_index: int) -> void:
-		if mouse_button_index != MOUSE_BUTTON_RIGHT:
-			return
-		var slot: int = int(bag_list.get_item_metadata(index))
-		var cell: Variant = _inventory.get_cell(_focus_character_id, slot)
-		if cell is Dictionary:
-			_show_item_inspect_dialog(_cell_description(cell as Dictionary))
+	bag_list.item_clicked.connect(
+		func(index: int, _at_position: Vector2, mouse_button_index: int) -> void:
+			if mouse_button_index != MOUSE_BUTTON_RIGHT:
+				return
+			var slot: int = int(bag_list.get_item_metadata(index))
+			var cell: Variant = _inventory.get_cell(_focus_character_id, slot)
+			if cell is Dictionary:
+				_show_item_inspect_dialog(_cell_description(cell as Dictionary))
 	)
 	var sell_btn := Button.new()
 	sell_btn.text = "Sell selected"
-	sell_btn.pressed.connect(func() -> void:
-		var sel: PackedInt32Array = bag_list.get_selected_items()
-		if sel.is_empty():
-			return
-		var slot: int = int(bag_list.get_item_metadata(sel[0]))
-		var err: Error = _merchant.sell_from_bag(_focus_character_id, merchant_id, slot, 1)
-		if err == OK:
-			_append_command_feed("[trade] Sold item.", _focus_character_id)
-			dlg.queue_free()
-			if _inventory_panel != null and _inventory_panel.has_method("refresh"):
-				_inventory_panel.refresh()
-			_open_merchant_trade_dialog(merchant_id)
-		else:
-			_append_command_feed("[trade] Could not sell item.", _focus_character_id)
+	sell_btn.pressed.connect(
+		func() -> void:
+			var sel: PackedInt32Array = bag_list.get_selected_items()
+			if sel.is_empty():
+				return
+			var slot: int = int(bag_list.get_item_metadata(sel[0]))
+			var err: Error = _merchant.sell_from_bag(_focus_character_id, merchant_id, slot, 1)
+			if err == OK:
+				_append_command_feed("[trade] Sold item.", _focus_character_id)
+				dlg.queue_free()
+				if _inventory_panel != null and _inventory_panel.has_method("refresh"):
+					_inventory_panel.refresh()
+				_open_merchant_trade_dialog(merchant_id)
+			else:
+				_append_command_feed("[trade] Could not sell item.", _focus_character_id)
 	)
 	sell_col.add_child(bag_list)
 	sell_col.add_child(sell_btn)
@@ -4062,10 +4349,14 @@ func try_read_scroll_from_bag(bag_index: int) -> void:
 		_refresh_panel_b_auxiliary()
 		return
 	if not data.learn_spell(StringName(teach)):
-		_append_command_feed("[ui] Already know %s." % MagicRules.spell_display_name(StringName(teach)))
+		_append_command_feed(
+			"[ui] Already know %s." % MagicRules.spell_display_name(StringName(teach))
+		)
 		return
 	_inventory.try_take_single(_focus_character_id, bag_index)
-	_append_command_feed("[ui] Learned %s from scroll." % MagicRules.spell_display_name(StringName(teach)))
+	_append_command_feed(
+		"[ui] Learned %s from scroll." % MagicRules.spell_display_name(StringName(teach))
+	)
 	if _inventory_panel != null and _inventory_panel.has_method("refresh"):
 		_inventory_panel.refresh()
 	if _stats != null:
@@ -4080,7 +4371,9 @@ func _on_equipment_changed_for_b_panels(character_id: StringName) -> void:
 
 func _on_party_card_pressed(slot_index: int) -> void:
 	_selected_card_slot = slot_index
-	var card: Node = _party_cards[slot_index] if slot_index >= 0 and slot_index < _party_cards.size() else null
+	var card: Node = (
+		_party_cards[slot_index] if slot_index >= 0 and slot_index < _party_cards.size() else null
+	)
 	if card == null:
 		_sync_selection_visual_only()
 		return
@@ -4126,16 +4419,23 @@ func _populate_runner_options() -> void:
 	if _registry != null and _registry.has_method("list_character_ids"):
 		for cid in _registry.list_character_ids():
 			_automation_runner_select.add_item("Char: %s" % String(cid))
-			_automation_runner_select.set_item_metadata(_automation_runner_select.item_count - 1, cid)
+			_automation_runner_select.set_item_metadata(
+				_automation_runner_select.item_count - 1, cid
+			)
 	if _group_system != null and _group_system.has_method("list_group_ids"):
 		for gid in _group_system.list_group_ids():
 			_automation_runner_select.add_item("Group: %s" % String(gid))
-			_automation_runner_select.set_item_metadata(
-				_automation_runner_select.item_count - 1,
-				AutomationSystem.group_runner_id(gid),
+			(
+				_automation_runner_select
+				. set_item_metadata(
+					_automation_runner_select.item_count - 1,
+					AutomationSystem.group_runner_id(gid),
+				)
 			)
 	_automation_runner_select.add_item("Default runner")
-	_automation_runner_select.set_item_metadata(_automation_runner_select.item_count - 1, &"default")
+	_automation_runner_select.set_item_metadata(
+		_automation_runner_select.item_count - 1, &"default"
+	)
 	_automation_runner_select.set_block_signals(false)
 	if _focus_character_id != &"":
 		_sync_runner_dropdown_to_id(_focus_character_id)
@@ -4220,7 +4520,10 @@ func _on_automation_apply_preset_pressed() -> void:
 	var idx := clampi(_opt_automation_preset.selected, 0, _opt_automation_preset.item_count - 1)
 	var preset_id: int = int(_opt_automation_preset.get_item_metadata(idx))
 	if preset_id < 1:
-		_append_command_feed("[ui] Choose a template row other than the placeholder.", _automation_ui_log_character_id())
+		_append_command_feed(
+			"[ui] Choose a template row other than the placeholder.",
+			_automation_ui_log_character_id()
+		)
 		return
 	_automation.clear_queue(_current_runner_id)
 	match preset_id:
@@ -4234,7 +4537,9 @@ func _on_automation_apply_preset_pressed() -> void:
 			h.data["sim_only"] = true
 			h.data["sim_ticks"] = 2
 			_automation.enqueue_for(_current_runner_id, h)
-			_append_command_feed("[ui] Preset: simulated hunt grind queued.", _automation_ui_log_character_id())
+			_append_command_feed(
+				"[ui] Preset: simulated hunt grind queued.", _automation_ui_log_character_id()
+			)
 		2:
 			var ptid: StringName = _resolve_follow_target_for_task()
 			if ptid == &"":
@@ -4250,7 +4555,9 @@ func _on_automation_apply_preset_pressed() -> void:
 			f.label = "preset:follow:%s" % String(ptid)
 			f.data["target_character_id"] = ptid
 			_automation.enqueue_for(_current_runner_id, f)
-			_append_command_feed("[ui] Preset: follow backbone queued.", _automation_ui_log_character_id())
+			_append_command_feed(
+				"[ui] Preset: follow backbone queued.", _automation_ui_log_character_id()
+			)
 		3:
 			var self_c: StringName = _drafting_automation_character_id()
 			var ally: StringName = _resolve_assist_ally_for_task()
@@ -4288,7 +4595,9 @@ func _on_automation_apply_preset_pressed() -> void:
 			s.data["merchant_pipeline"] = true
 			s.data["use_external_completion"] = true
 			_automation.enqueue_for(_current_runner_id, s)
-			_append_command_feed("[ui] Preset: vendor sell pipeline queued.", _automation_ui_log_character_id())
+			_append_command_feed(
+				"[ui] Preset: vendor sell pipeline queued.", _automation_ui_log_character_id()
+			)
 		5:
 			var cqid := _first_active_quest_id_or_default()
 			var cq := AutomationSystem.AutomationTask.new()
@@ -4299,7 +4608,10 @@ func _on_automation_apply_preset_pressed() -> void:
 			cq.data["quest_id"] = String(cqid)
 			cq.data["use_external_completion"] = true
 			_automation.enqueue_for(_current_runner_id, cq)
-			_append_command_feed("[ui] Preset: tracked quest watcher queued (%s)." % String(cqid), _automation_ui_log_character_id())
+			_append_command_feed(
+				"[ui] Preset: tracked quest watcher queued (%s)." % String(cqid),
+				_automation_ui_log_character_id()
+			)
 		6:
 			var sl := AutomationSystem.AutomationTask.new()
 			sl.type = AutomationSystem.TaskType.SEARCH_LOOT
@@ -4309,7 +4621,9 @@ func _on_automation_apply_preset_pressed() -> void:
 			sl.data["loot_filter"] = {"item_id": StringName(&"scrap")}
 			sl.data["use_external_completion"] = true
 			_automation.enqueue_for(_current_runner_id, sl)
-			_append_command_feed("[ui] Preset: scrap loot probe queued.", _automation_ui_log_character_id())
+			_append_command_feed(
+				"[ui] Preset: scrap loot probe queued.", _automation_ui_log_character_id()
+			)
 		_:
 			pass
 	_refresh_automation_panel()
@@ -4350,17 +4664,22 @@ func _refresh_automation_panel() -> void:
 	var active: Variant = _automation.get_active_task_for(_current_runner_id)
 	if active != null and active is AutomationSystem.AutomationTask:
 		var at: AutomationSystem.AutomationTask = active as AutomationSystem.AutomationTask
-		_automation_active.text = "[b]%s[/b]  prio=%d  int=%s  id=%d\n[i]%s[/i]" % [
-			_automation_task_name(at.type),
-			at.priority,
-			"y" if at.interruptible else "n",
-			at.task_id,
-			at.label,
-		]
+		_automation_active.text = (
+			"[b]%s[/b]  prio=%d  int=%s  id=%d\n[i]%s[/i]"
+			% [
+				_automation_task_name(at.type),
+				at.priority,
+				"y" if at.interruptible else "n",
+				at.task_id,
+				at.label,
+			]
+		)
 	else:
 		var susp: Array = _automation.get_suspended_snapshot_for(_current_runner_id)
 		if not susp.is_empty():
-			var t: AutomationSystem.AutomationTask = susp[susp.size() - 1] as AutomationSystem.AutomationTask
+			var t: AutomationSystem.AutomationTask = (
+				susp[susp.size() - 1] as AutomationSystem.AutomationTask
+			)
 			_automation_active.text = "(none active; last suspended: [i]%s[/i])" % t.label
 		else:
 			_automation_active.text = "—"
@@ -4428,7 +4747,9 @@ func _refresh_automation_panel() -> void:
 		var ok: bool = bool(row.get("success", false))
 		var lbl: String = str(row.get("label", ""))
 		var typ: int = int(row.get("type", 0))
-		_automation_previous.add_item("%s  %s  %s" % ["ok" if ok else "x", _automation_task_name(typ), lbl])
+		_automation_previous.add_item(
+			"%s  %s  %s" % ["ok" if ok else "x", _automation_task_name(typ), lbl]
+		)
 
 	_automation_status_log.clear()
 	for line in _automation.get_status_messages_for(_current_runner_id):
@@ -4667,7 +4988,11 @@ func _refresh_selection_portrait() -> void:
 		_sync_ui_attack_to_selection()
 		_refresh_panel_b_auxiliary()
 		return
-	if _selection_portrait_source == "world" and _selection_world_kind != "none" and _selection_world_node != null:
+	if (
+		_selection_portrait_source == "world"
+		and _selection_world_kind != "none"
+		and _selection_world_node != null
+	):
 		if _selection_world_kind == "actor":
 			var aid: StringName = _selection_world_id
 			var aname: String = String(aid)
@@ -4763,7 +5088,11 @@ func _try_start_player_spell_cast() -> void:
 	if _spell_cast_busy:
 		_append_command_feed("[ui] Already casting.")
 		return
-	if _focus_character_id == &"" or _selection_world_node == null or not (_selection_world_node is Node2D):
+	if (
+		_focus_character_id == &""
+		or _selection_world_node == null
+		or not (_selection_world_node is Node2D)
+	):
 		return
 	var is_enemy: bool = _selection_world_kind == "enemy"
 	var is_actor: bool = _selection_world_kind == "actor"
@@ -4857,22 +5186,30 @@ func _tick_player_spell_cast(delta: float) -> void:
 	var mc_skill: float = 0.0
 	var ms_skill: float = 0.0
 	if _stats != null and _equipment != null:
-		var st_cast: Dictionary = _stats.get_effective_stats(_spell_cast_attacker_id, data, _equipment)
+		var st_cast: Dictionary = _stats.get_effective_stats(
+			_spell_cast_attacker_id, data, _equipment
+		)
 		var sm: Dictionary = st_cast.get("skill_modifiers", {}) as Dictionary
 		mc_skill = float(sm.get(_Sch.SKILL_MAGIC_COMBAT, 0.0))
 		ms_skill = float(sm.get(_Sch.SKILL_MAGIC_SUPPORT, 0.0))
 	elif _balance is CharacterBalanceConfig:
 		var cfg_mc: CharacterBalanceConfig = _balance as CharacterBalanceConfig
 		var rmap: Dictionary = _merged_skill_ranks_for_progression(data)
-		mc_skill = cfg_mc.get_skill_total_modifier(
-			StringName(_Sch.SKILL_MAGIC_COMBAT),
-			data.attributes,
-			int(rmap.get(_Sch.SKILL_MAGIC_COMBAT, 0)),
+		mc_skill = (
+			cfg_mc
+			. get_skill_total_modifier(
+				StringName(_Sch.SKILL_MAGIC_COMBAT),
+				data.attributes,
+				int(rmap.get(_Sch.SKILL_MAGIC_COMBAT, 0)),
+			)
 		)
-		ms_skill = cfg_mc.get_skill_total_modifier(
-			StringName(_Sch.SKILL_MAGIC_SUPPORT),
-			data.attributes,
-			int(rmap.get(_Sch.SKILL_MAGIC_SUPPORT, 0)),
+		ms_skill = (
+			cfg_mc
+			. get_skill_total_modifier(
+				StringName(_Sch.SKILL_MAGIC_SUPPORT),
+				data.attributes,
+				int(rmap.get(_Sch.SKILL_MAGIC_SUPPORT, 0)),
+			)
 		)
 	var fizzle_p: float = MagicRules.spell_resolve_fizzle_probability(mc_skill, ms_skill, sid, tier)
 	var fizzled: bool = randf() < fizzle_p
@@ -4898,8 +5235,11 @@ func _sync_ui_attack_to_selection() -> void:
 		return
 	var ctx: Dictionary = _attack_context_for(_focus_character_id)
 	var mode: String = str(ctx.get("mode", "none"))
-	var casting_weapon: bool = WeaponItemUtils.is_casting_weapon(
-		WeaponItemUtils.main_hand_definition(_focus_character_id, _equipment, _catalog),
+	var casting_weapon: bool = (
+		WeaponItemUtils
+		. is_casting_weapon(
+			WeaponItemUtils.main_hand_definition(_focus_character_id, _equipment, _catalog),
+		)
 	)
 	var ok: bool = false
 	if _selection_world_kind == "enemy":
@@ -4929,8 +5269,13 @@ func _tick_ui_directed_attack(_delta: float) -> void:
 	if actor == null or not (actor is Node2D):
 		return
 	var dist: float = (actor as Node2D).global_position.distance_to(enemy.global_position)
-	var ui_reach: float = float(_attack_context_for(_focus_character_id).get("range_px", _MELEE_RANGE_PX))
-	if actor.has_method("set_hunt_navigation_active") and actor.has_method("update_hunt_navigation_goal"):
+	var ui_reach: float = float(
+		_attack_context_for(_focus_character_id).get("range_px", _MELEE_RANGE_PX)
+	)
+	if (
+		actor.has_method("set_hunt_navigation_active")
+		and actor.has_method("update_hunt_navigation_goal")
+	):
 		if dist > ui_reach * 0.92:
 			actor.call("set_hunt_navigation_active", true)
 			var ph: Dictionary = _prey_hunters_map()
@@ -4941,7 +5286,9 @@ func _tick_ui_directed_attack(_delta: float) -> void:
 	var now: int = Time.get_ticks_msec()
 	if now - _ui_attack_last_strike_ms < _attack_cooldown_ms(_focus_character_id):
 		return
-	var outcome: Dictionary = _perform_melee_against_node(_focus_character_id, enemy, true, "[attack]")
+	var outcome: Dictionary = _perform_melee_against_node(
+		_focus_character_id, enemy, true, "[attack]"
+	)
 	if bool(outcome.get("struck", false)):
 		_ui_attack_last_strike_ms = now
 
@@ -4956,7 +5303,11 @@ func _refresh_panel_b_auxiliary() -> void:
 func _refresh_bb_vitals_bars() -> void:
 	if _bb_vitals == null or _bb_bar_hp == null or _bb_bar_st == null or _bb_bar_mn == null:
 		return
-	if _selection_portrait_source == "world" and _selection_world_kind == "enemy" and _selection_world_node != null:
+	if (
+		_selection_portrait_source == "world"
+		and _selection_world_kind == "enemy"
+		and _selection_world_node != null
+	):
 		_bb_vitals.visible = true
 		_bb_bar_st.visible = false
 		_bb_bar_mn.visible = false
@@ -4969,7 +5320,14 @@ func _refresh_bb_vitals_bars() -> void:
 			_bb_bar_hp.max_value = 1.0
 			_bb_bar_hp.value = 0.0
 		return
-	if _selection_portrait_source == "world" and _selection_world_kind == "actor" and _selection_world_id != &"" and _registry != null and _stats != null and _equipment != null:
+	if (
+		_selection_portrait_source == "world"
+		and _selection_world_kind == "actor"
+		and _selection_world_id != &""
+		and _registry != null
+		and _stats != null
+		and _equipment != null
+	):
 		_bb_vitals.visible = true
 		_bb_bar_st.visible = true
 		_bb_bar_mn.visible = true
@@ -5024,7 +5382,9 @@ func _refresh_bc_action_row() -> void:
 		return
 	var ctx: Dictionary = _attack_context_for(_focus_character_id)
 	var mode: String = str(ctx.get("mode", "none"))
-	var main_def: Resource = WeaponItemUtils.main_hand_definition(_focus_character_id, _equipment, _catalog)
+	var main_def: Resource = WeaponItemUtils.main_hand_definition(
+		_focus_character_id, _equipment, _catalog
+	)
 	var casting_weapon: bool = WeaponItemUtils.is_casting_weapon(main_def)
 	var enemy_ok: bool = (
 		_selection_portrait_source == "world"
@@ -5037,11 +5397,7 @@ func _refresh_bc_action_row() -> void:
 		and _selection_world_node != null
 	)
 	var show_on_enemy: bool = enemy_ok and mode in ["melee", "missile", "casting"]
-	var cast_on_actor_ok: bool = (
-		actor_ok
-		and casting_weapon
-		and mode == "casting_support"
-	)
+	var cast_on_actor_ok: bool = actor_ok and casting_weapon and mode == "casting_support"
 	var show_primary: bool = show_on_enemy or cast_on_actor_ok
 	var can_strike: bool = false
 	if show_on_enemy:
@@ -5077,8 +5433,15 @@ func _refresh_bc_action_row() -> void:
 		else:
 			_bc_btn_attack.text = "Attack"
 	var show_inspect: bool = (
-		(_selection_portrait_source == "world" and _selection_world_kind != "none" and _selection_world_node != null)
-		or (_selection_portrait_source == "inventory" and not _selection_inventory_snapshot.is_empty())
+		(
+			_selection_portrait_source == "world"
+			and _selection_world_kind != "none"
+			and _selection_world_node != null
+		)
+		or (
+			_selection_portrait_source == "inventory"
+			and not _selection_inventory_snapshot.is_empty()
+		)
 	)
 	_bc_btn_inspect.visible = show_inspect
 	_bc_btn_inspect.disabled = not show_inspect
@@ -5092,7 +5455,9 @@ func _rebuild_panel_bd_spells() -> void:
 	if _focus_character_id == &"" or _registry == null or _catalog == null or _equipment == null:
 		_lbl_bd_selected.text = "Selected: —"
 		return
-	var def: Resource = WeaponItemUtils.main_hand_definition(_focus_character_id, _equipment, _catalog)
+	var def: Resource = WeaponItemUtils.main_hand_definition(
+		_focus_character_id, _equipment, _catalog
+	)
 	if not WeaponItemUtils.is_casting_weapon(def):
 		_lbl_bd_selected.text = "Equip a wand or orb to manage spells."
 		return
@@ -5170,7 +5535,11 @@ func _on_bd_spell_button_pressed(spell_id: StringName) -> void:
 
 
 func _on_bc_attack_pressed() -> void:
-	if _selection_portrait_source != "world" or _selection_world_node == null or not (_selection_world_node is Node2D):
+	if (
+		_selection_portrait_source != "world"
+		or _selection_world_node == null
+		or not (_selection_world_node is Node2D)
+	):
 		return
 	var is_enemy: bool = _selection_world_kind == "enemy"
 	var is_actor: bool = _selection_world_kind == "actor"
@@ -5187,7 +5556,9 @@ func _on_bc_attack_pressed() -> void:
 	if mode == "casting_no_spell":
 		_append_command_feed("[ui] Select a spell in Panel B.d.")
 		return
-	var main_def: Resource = WeaponItemUtils.main_hand_definition(_focus_character_id, _equipment, _catalog)
+	var main_def: Resource = WeaponItemUtils.main_hand_definition(
+		_focus_character_id, _equipment, _catalog
+	)
 	var casting_weapon: bool = WeaponItemUtils.is_casting_weapon(main_def)
 	if casting_weapon and (mode == "casting" or mode == "casting_support"):
 		if is_enemy and mode == "casting_support":
@@ -5283,35 +5654,85 @@ func _append_item_inspect_lines(lines: PackedStringArray, desc: Dictionary) -> v
 			lines.append("Armor Level: %.1f" % float(desc.get("armor_level", 0.0)))
 			_append_resistance_lines(lines, desc.get("armor_ratings", {}) as Dictionary)
 		"melee":
-			lines.append("Damage: %d-%d Damage of %s" % [
-				int(desc.get("damage_min", 0)),
-				int(desc.get("damage_max", 0)),
-				_damage_type_display(int(desc.get("damage_type", DamageTypes.Id.SLASHING))),
-			])
+			(
+				lines
+				. append(
+					(
+						"Damage: %d-%d Damage of %s"
+						% [
+							int(desc.get("damage_min", 0)),
+							int(desc.get("damage_max", 0)),
+							_damage_type_display(
+								int(desc.get("damage_type", DamageTypes.Id.SLASHING))
+							),
+						]
+					)
+				)
+			)
 			var mods_m: Dictionary = desc.get("modifiers", {}) as Dictionary
-			lines.append("Speed: %s" % _format_signed_percent(float(mods_m.get("attack_speed_bonus", 0.0))))
-			lines.append("Melee Defense: %s" % _format_multiplier_bonus(mods_m, "melee_defense_multiplier"))
-			lines.append("Melee Combat: %s" % _format_multiplier_bonus(mods_m, "melee_combat_multiplier"))
+			lines.append(
+				"Speed: %s" % _format_signed_percent(float(mods_m.get("attack_speed_bonus", 0.0)))
+			)
+			lines.append(
+				"Melee Defense: %s" % _format_multiplier_bonus(mods_m, "melee_defense_multiplier")
+			)
+			lines.append(
+				"Melee Combat: %s" % _format_multiplier_bonus(mods_m, "melee_combat_multiplier")
+			)
 		"caster":
 			var mods_c: Dictionary = desc.get("modifiers", {}) as Dictionary
-			lines.append("Melee Defense: %s" % _format_multiplier_bonus(mods_c, "melee_defense_multiplier"))
-			lines.append("Missile Defense: %s" % _format_multiplier_bonus(mods_c, "missile_defense_multiplier"))
-			lines.append("Arcane Connection: %s" % _format_multiplier_bonus(mods_c, "arcane_connection_multiplier", "arcane_conversion_multiplier"))
+			lines.append(
+				"Melee Defense: %s" % _format_multiplier_bonus(mods_c, "melee_defense_multiplier")
+			)
+			lines.append(
+				(
+					"Missile Defense: %s"
+					% _format_multiplier_bonus(mods_c, "missile_defense_multiplier")
+				)
+			)
+			lines.append(
+				(
+					"Arcane Connection: %s"
+					% _format_multiplier_bonus(
+						mods_c, "arcane_connection_multiplier", "arcane_conversion_multiplier"
+					)
+				)
+			)
 			if mods_c.has("spell_extra_damage_percent"):
 				var dt: int = int(mods_c.get("spell_extra_damage_type", DamageTypes.Id.FIRE))
-				var pct: int = int(round(float(mods_c.get("spell_extra_damage_percent", 0.0)) * 100.0))
-				lines.append("This item appears to be empowered by %s, increasing damage of spells using %s by %d%%." % [
-					_damage_type_display(dt),
-					_damage_type_display(dt),
-					pct,
-				])
+				var pct: int = int(
+					round(float(mods_c.get("spell_extra_damage_percent", 0.0)) * 100.0)
+				)
+				(
+					lines
+					. append(
+						(
+							"This item appears to be empowered by %s, increasing damage of spells using %s by %d%%."
+							% [
+								_damage_type_display(dt),
+								_damage_type_display(dt),
+								pct,
+							]
+						)
+					)
+				)
 		_:
 			if int(desc.get("damage_max", 0)) > 0:
-				lines.append("Damage: %d-%d Damage of %s" % [
-					int(desc.get("damage_min", 0)),
-					int(desc.get("damage_max", 0)),
-					_damage_type_display(int(desc.get("damage_type", DamageTypes.Id.SLASHING))),
-				])
+				(
+					lines
+					. append(
+						(
+							"Damage: %d-%d Damage of %s"
+							% [
+								int(desc.get("damage_min", 0)),
+								int(desc.get("damage_max", 0)),
+								_damage_type_display(
+									int(desc.get("damage_type", DamageTypes.Id.SLASHING))
+								),
+							]
+						)
+					)
+				)
 
 
 func _item_inspect_kind(desc: Dictionary) -> String:
@@ -5347,18 +5768,29 @@ func _append_item_inlay_line(lines: PackedStringArray, desc: Dictionary, kind: S
 	var use_text: String = ""
 	match kind:
 		"armor":
-			use_text = " The %s covers %s of the body." % [item_name, _equip_area_display(StringName(str(desc.get("equip_slot", ""))))]
+			use_text = (
+				" The %s covers %s of the body."
+				% [item_name, _equip_area_display(StringName(str(desc.get("equip_slot", ""))))]
+			)
 		"melee":
 			use_text = " The %s is used for melee combat." % item_name
 		"caster":
 			use_text = " The %s is used for casting magic." % item_name
-	lines.append("This %s is inlayed with %d special %s and %d precious jewels.%s" % [
-		item_name,
-		metal_or_fabric,
-		material_word,
-		jewels,
-		use_text,
-	])
+	(
+		lines
+		. append(
+			(
+				"This %s is inlayed with %d special %s and %d precious jewels.%s"
+				% [
+					item_name,
+					metal_or_fabric,
+					material_word,
+					jewels,
+					use_text,
+				]
+			)
+		)
+	)
 
 
 func _append_item_magic_lines(lines: PackedStringArray, desc: Dictionary) -> void:
@@ -5372,9 +5804,22 @@ func _append_item_magic_lines(lines: PackedStringArray, desc: Dictionary) -> voi
 		spell_names.append(str(s))
 	if spell_names.is_empty():
 		spell_names.append("unknown")
-	lines.append("This %s appears to be enchanted with magic. The spells are: %s" % [item_name, ", ".join(spell_names)])
+	lines.append(
+		(
+			"This %s appears to be enchanted with magic. The spells are: %s"
+			% [item_name, ", ".join(spell_names)]
+		)
+	)
 	if mods.has("arcane_connection_required"):
-		lines.append("To activate the spells of this item, you must have an Arcane Connection higher than %d." % int(mods.get("arcane_connection_required", 0)))
+		(
+			lines
+			. append(
+				(
+					"To activate the spells of this item, you must have an Arcane Connection higher than %d."
+					% int(mods.get("arcane_connection_required", 0))
+				)
+			)
+		)
 
 
 func _append_resistance_lines(lines: PackedStringArray, ratings: Dictionary) -> void:
@@ -5462,31 +5907,67 @@ func _show_item_inspect_dialog(desc: Dictionary) -> void:
 
 func _build_inspect_text() -> String:
 	var lines: PackedStringArray = PackedStringArray()
-	if _selection_portrait_source == "world" and _selection_world_kind == "actor" and _selection_world_id != &"":
+	if (
+		_selection_portrait_source == "world"
+		and _selection_world_kind == "actor"
+		and _selection_world_id != &""
+	):
 		lines.append("[b]Character[/b]")
 		lines.append("Id: %s" % String(_selection_world_id))
 		if _registry != null:
 			var dres: Resource = _registry.get_character(_selection_world_id)
 			if dres != null:
 				lines.append("Name: %s" % str(dres.user_name))
-				lines.append("Level: %d  XP: %d  Logged in: %s" % [int(dres.level), int(dres.total_experience), str(dres.is_logged_in)])
+				lines.append(
+					(
+						"Level: %d  XP: %d  Logged in: %s"
+						% [int(dres.level), int(dres.total_experience), str(dres.is_logged_in)]
+					)
+				)
 				if _stats != null and _equipment != null:
-					var st: Dictionary = _stats.get_effective_stats(_selection_world_id, dres, _equipment)
-					lines.append("HP: %.0f / %.0f  STA: %.0f / %.0f  MP: %.0f / %.0f" % [
-						float(dres.current_health),
-						float(st.get("max_health", 0.0)),
-						float(dres.current_stamina),
-						float(st.get("max_stamina", 0.0)),
-						float(dres.current_mana),
-						float(st.get("max_mana", 0.0)),
-					])
-					lines.append("Death penalty: %.1f%%" % (float(st.get("death_penalty_percent", 0.0)) * 100.0))
-					lines.append("Max HP: %.0f  Max STA: %.0f  Max MP: %.0f" % [
-						float(st.get("max_health", 0.0)),
-						float(st.get("max_stamina", 0.0)),
-						float(st.get("max_mana", 0.0)),
-					])
-	elif _selection_portrait_source == "world" and _selection_world_kind == "enemy" and _selection_world_node != null:
+					var st: Dictionary = _stats.get_effective_stats(
+						_selection_world_id, dres, _equipment
+					)
+					(
+						lines
+						. append(
+							(
+								"HP: %.0f / %.0f  STA: %.0f / %.0f  MP: %.0f / %.0f"
+								% [
+									float(dres.current_health),
+									float(st.get("max_health", 0.0)),
+									float(dres.current_stamina),
+									float(st.get("max_stamina", 0.0)),
+									float(dres.current_mana),
+									float(st.get("max_mana", 0.0)),
+								]
+							)
+						)
+					)
+					lines.append(
+						(
+							"Death penalty: %.1f%%"
+							% (float(st.get("death_penalty_percent", 0.0)) * 100.0)
+						)
+					)
+					(
+						lines
+						. append(
+							(
+								"Max HP: %.0f  Max STA: %.0f  Max MP: %.0f"
+								% [
+									float(st.get("max_health", 0.0)),
+									float(st.get("max_stamina", 0.0)),
+									float(st.get("max_mana", 0.0)),
+								]
+							)
+						)
+					)
+	elif (
+		_selection_portrait_source == "world"
+		and _selection_world_kind == "enemy"
+		and _selection_world_node != null
+	):
 		lines.append("[b]Enemy[/b]")
 		lines.append("Node: %s" % str(_selection_world_node.name))
 		if _selection_world_node.get_script() == _CombatTestEnemyScr:
@@ -5503,11 +5984,19 @@ func _build_inspect_text() -> String:
 			lines.append("Attributes: %s" % str(attrs))
 			lines.append("Attack / Defense: %.1f / %.1f" % [atk, defn])
 			lines.append("XP reward: %d" % xp)
-	elif _selection_portrait_source == "world" and _selection_world_kind == "corpse" and _selection_world_node != null:
+	elif (
+		_selection_portrait_source == "world"
+		and _selection_world_kind == "corpse"
+		and _selection_world_node != null
+	):
 		lines.append("[b]Corpse[/b]")
 		lines.append("Id: %s" % String(_selection_world_id))
 		lines.append("Use Loot to view this corpse's contents.")
-	elif _selection_portrait_source == "world" and _selection_world_kind == "merchant" and _selection_world_node != null:
+	elif (
+		_selection_portrait_source == "world"
+		and _selection_world_kind == "merchant"
+		and _selection_world_node != null
+	):
 		lines.append("[b]Merchant[/b]")
 		lines.append("Id: %s" % String(_selection_world_id))
 		lines.append("This merchant buys and sells goods.")
@@ -5522,9 +6011,14 @@ func _build_inspect_text() -> String:
 			if cellv is Dictionary:
 				desc = _cell_description(cellv as Dictionary)
 		elif src2 == "equip" and _equipment != null:
-			var eslot_desc: StringName = StringName(String(_selection_inventory_snapshot.get("equip_slot", "")))
+			var eslot_desc: StringName = StringName(
+				String(_selection_inventory_snapshot.get("equip_slot", ""))
+			)
 			if _equipment.has_method("get_equipped_details"):
-				desc = _equipment.call("get_equipped_details", _focus_character_id, eslot_desc) as Dictionary
+				desc = (
+					_equipment.call("get_equipped_details", _focus_character_id, eslot_desc)
+					as Dictionary
+				)
 		if not desc.is_empty():
 			_append_item_inspect_lines(lines, desc)
 		elif not ii.is_empty() and _catalog != null and _catalog.has_method("get_definition"):

@@ -1,0 +1,5 @@
+#!/bin/sh
+# NiceShoes: GDScript quality gate (format check, lint, headless tests).
+# Enable: git config core.hooksPath .githooks
+ROOT="$(CDPATH= cd "$(dirname "$0")/.." && pwd)"
+exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ROOT/scripts/check_quality.ps1"

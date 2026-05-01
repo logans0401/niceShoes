@@ -42,10 +42,14 @@ func _armor_entries_for_tier(tier: int) -> Array:
 		{"id": "scalemail", "min_tier": 10},
 		{"id": "platemail", "min_tier": 14},
 	]
-	var armor_slots: Array[String] = ["head", "shoulders", "chest", "hands", "waist", "legs", "feet"]
+	var armor_slots: Array[String] = [
+		"head", "shoulders", "chest", "hands", "waist", "legs", "feet"
+	]
 	for type_data in armor_types:
 		if tier < int(type_data.get("min_tier", 1)):
 			continue
 		for slot in armor_slots:
-			entries.append({"item_id": StringName("%s_%s" % [str(type_data.get("id", "")), slot]), "weight": 3})
+			entries.append(
+				{"item_id": StringName("%s_%s" % [str(type_data.get("id", "")), slot]), "weight": 3}
+			)
 	return entries

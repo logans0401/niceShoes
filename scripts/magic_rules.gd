@@ -11,8 +11,8 @@ enum School {
 }
 
 ## Combat bolt spell ids (each maps to a `DamageTypes.Id` on cast).
-const BOLT_FORCE := &"force_bolt" ## bludgeoning
-const BOLT_BLADE := &"blade_bolt" ## slashing
+const BOLT_FORCE := &"force_bolt"  ## bludgeoning
+const BOLT_BLADE := &"blade_bolt"  ## slashing
 const BOLT_PIERCE := &"piercing_bolt"
 const BOLT_LIGHTNING := &"lightning_bolt"
 const BOLT_FROST := &"frost_bolt"
@@ -158,7 +158,8 @@ static func buff_spell_definition(spell_id: StringName) -> Dictionary:
 
 static func protection_spell_catalog() -> Dictionary:
 	var out: Dictionary = {
-		&"armor_protection": {
+		&"armor_protection":
+		{
 			"kind": PROTECTION_KIND_ARMOR,
 			"display_name": "Armor Protection",
 			"armor_bonus": ARMOR_PROTECTION_AMOUNT,

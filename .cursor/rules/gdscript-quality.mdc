@@ -1,0 +1,25 @@
+---
+description: GDScript quality — gdtoolkit + headless harness before commits
+alwaysApply: true
+---
+
+# GDScript quality (NiceShoes)
+
+## Tooling
+
+- **`gdformat` / `gdlint`** (Python **gdtoolkit** 4.x): project `.venv`; config in repo root **`gdlintrc`**.
+- **One-time setup** (per clone): `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap_dev_env.ps1`
+- **Format in place**: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/format_code.ps1`
+- **Full gate** (format check + lint + Godot headless tests): `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check_quality.ps1`
+
+## Before `git commit`
+
+After substantive changes to **`.gd`**, **`main.gd`**, **`project.godot`**, or scenes that affect scripts, run **`scripts/check_quality.ps1`** and fix failures before committing. Prefer formatting with **`format_code.ps1`** rather than hand-editing style.
+
+## Optional Git hook
+
+`git config core.hooksPath .githooks` runs the same gate on local `git commit` (requires Python venv, Godot path as in `tests/run_headless.ps1`).
+
+## Duplication / dead code
+
+**gdlint** flags some real issues (long lines, duplicated `load()` of the same resource, unused args). There is no GDScript-wide “module graph dead code” tool like Fallow; rely on **lint + headless tests + editor warnings** and avoid copy-pasting large blocks across `systems/` / `ui/`.

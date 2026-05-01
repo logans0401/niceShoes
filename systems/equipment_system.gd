@@ -31,7 +31,11 @@ func get_equipped_item(character_id: StringName, slot: StringName) -> StringName
 	var key: StringName = get_equipped_key(character_id, slot)
 	if key == &"":
 		return &""
-	if _item_instances != null and _item_instances.has_method("has_instance") and bool(_item_instances.call("has_instance", key)):
+	if (
+		_item_instances != null
+		and _item_instances.has_method("has_instance")
+		and bool(_item_instances.call("has_instance", key))
+	):
 		var inst: Resource = _item_instances.call("get_instance", key) as Resource
 		if inst != null:
 			return inst.item_id as StringName
@@ -52,7 +56,11 @@ func get_equipped_details(character_id: StringName, slot: StringName) -> Diction
 	var key: StringName = get_equipped_key(character_id, slot)
 	if key == &"":
 		return {}
-	if _item_instances != null and _item_instances.has_method("has_instance") and bool(_item_instances.call("has_instance", key)):
+	if (
+		_item_instances != null
+		and _item_instances.has_method("has_instance")
+		and bool(_item_instances.call("has_instance", key))
+	):
 		var inst: Resource = _item_instances.call("get_instance", key) as Resource
 		if inst != null and inst.has_method("to_dictionary"):
 			return inst.call("to_dictionary") as Dictionary
@@ -165,7 +173,9 @@ func import_state(state: Dictionary) -> void:
 
 func _cell_key(cell: Dictionary) -> StringName:
 	var raw_inst: Variant = cell.get("instance_id", &"")
-	var inst_id: StringName = raw_inst as StringName if raw_inst is StringName else StringName(str(raw_inst))
+	var inst_id: StringName = (
+		raw_inst as StringName if raw_inst is StringName else StringName(str(raw_inst))
+	)
 	if inst_id != &"":
 		return inst_id
 	return _cell_item_id(cell)
@@ -187,7 +197,9 @@ func _meets_requirements(character_id: StringName, cell: Dictionary) -> bool:
 		return true
 	if _inventory == null:
 		return true
-	var registry: Node = _inventory.get_registry() if _inventory.has_method("get_registry") else null
+	var registry: Node = (
+		_inventory.get_registry() if _inventory.has_method("get_registry") else null
+	)
 	if registry == null:
 		return true
 	var data: Resource = registry.get_character(character_id)

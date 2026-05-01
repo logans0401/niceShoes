@@ -152,7 +152,9 @@ static func from_dictionary(data: Dictionary) -> Resource:
 	cd.attributes = (data.get("attributes", {}) as Dictionary).duplicate(true)
 	cd.attribute_xp = (data.get("attribute_xp", {}) as Dictionary).duplicate(true)
 	if ver >= 6:
-		cd.attribute_xp_purchases = (data.get("attribute_xp_purchases", {}) as Dictionary).duplicate(true)
+		cd.attribute_xp_purchases = (
+			(data.get("attribute_xp_purchases", {}) as Dictionary).duplicate(true)
+		)
 		cd.vital_xp_purchases = (data.get("vital_xp_purchases", {}) as Dictionary).duplicate(true)
 	else:
 		cd.attribute_xp_purchases = {}
@@ -169,11 +171,17 @@ static func from_dictionary(data: Dictionary) -> Resource:
 	else:
 		cd.skill_xp_purchases = {}
 	if ver >= 4:
-		cd.transient_attribute_bonus = (data.get("transient_attribute_bonus", {}) as Dictionary).duplicate(true)
-		cd.transient_skill_bonus = (data.get("transient_skill_bonus", {}) as Dictionary).duplicate(true)
+		cd.transient_attribute_bonus = (
+			(data.get("transient_attribute_bonus", {}) as Dictionary).duplicate(true)
+		)
+		cd.transient_skill_bonus = (data.get("transient_skill_bonus", {}) as Dictionary).duplicate(
+			true
+		)
 	if ver >= 8:
 		cd.transient_armor_bonus = float(data.get("transient_armor_bonus", 0.0))
-		cd.transient_damage_protection_percent = (data.get("transient_damage_protection_percent", {}) as Dictionary).duplicate(true)
+		cd.transient_damage_protection_percent = (
+			(data.get("transient_damage_protection_percent", {}) as Dictionary).duplicate(true)
+		)
 	if ver >= 5:
 		cd.known_spells = PackedStringArray(data.get("known_spells", []) as Array)
 	cd.current_health = float(data.get("current_health", 1.0))

@@ -17,19 +17,24 @@ func configure(catalog: Node, inventory: Node, inv_balance: Resource) -> void:
 		_inv_cfg = load("res://data/default_inventory_balance.tres") as Resource
 
 
-func spawn_drop(item_id: StringName, quantity: int, world_position: Vector2, ttl_override: float = -1.0) -> void:
+func spawn_drop(
+	item_id: StringName, quantity: int, world_position: Vector2, ttl_override: float = -1.0
+) -> void:
 	if quantity <= 0:
 		return
 	var ttl: float = ttl_override
 	if ttl < 0.0:
 		ttl = float(_inv_cfg.ground_item_decay_seconds)
-	_drops.append(
-		{
-			"item_id": item_id,
-			"quantity": quantity,
-			"position": world_position,
-			"ttl": ttl,
-		}
+	(
+		_drops
+		. append(
+			{
+				"item_id": item_id,
+				"quantity": quantity,
+				"position": world_position,
+				"ttl": ttl,
+			}
+		)
 	)
 
 

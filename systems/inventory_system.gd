@@ -16,7 +16,9 @@ var _item_instances: Node = null
 var _bags: Dictionary = {}
 
 
-func configure(catalog: Node, registry: Node, inv_balance: Resource, item_instances: Node = null) -> void:
+func configure(
+	catalog: Node, registry: Node, inv_balance: Resource, item_instances: Node = null
+) -> void:
 	_catalog = catalog
 	_registry = registry
 	_inv_cfg = inv_balance
@@ -136,11 +138,17 @@ func try_add_cell(character_id: StringName, cell: Dictionary) -> int:
 func try_add_equipped_key(character_id: StringName, item_key: StringName, quantity: int = 1) -> int:
 	if quantity <= 0:
 		return 0
-	if _item_instances != null and _item_instances.has_method("has_instance") and bool(_item_instances.call("has_instance", item_key)):
+	if (
+		_item_instances != null
+		and _item_instances.has_method("has_instance")
+		and bool(_item_instances.call("has_instance", item_key))
+	):
 		var inst: Resource = _item_instances.call("get_instance", item_key) as Resource
 		if inst == null:
 			return quantity
-		return try_add_cell(character_id, {"item_id": inst.item_id, "instance_id": item_key, "quantity": quantity})
+		return try_add_cell(
+			character_id, {"item_id": inst.item_id, "instance_id": item_key, "quantity": quantity}
+		)
 	return try_add_item(character_id, item_key, quantity)
 
 
@@ -289,9 +297,17 @@ func _recalc_burden(character_id: StringName) -> void:
 		total += unit_w * float(q)
 	if _equipment != null:
 		for slot in _EqScr.ALL_SLOTS:
-			var ekey: StringName = _equipment.get_equipped_key(character_id, StringName(slot)) if _equipment.has_method("get_equipped_key") else _equipment.get_equipped_item(character_id, StringName(slot))
+			var ekey: StringName = (
+				_equipment.get_equipped_key(character_id, StringName(slot))
+				if _equipment.has_method("get_equipped_key")
+				else _equipment.get_equipped_item(character_id, StringName(slot))
+			)
 			if String(ekey) != "":
-				if _item_instances != null and _item_instances.has_method("has_instance") and bool(_item_instances.call("has_instance", ekey)):
+				if (
+					_item_instances != null
+					and _item_instances.has_method("has_instance")
+					and bool(_item_instances.call("has_instance", ekey))
+				):
 					var inst: Resource = _item_instances.call("get_instance", ekey) as Resource
 					if inst != null:
 						total += float(inst.weight)

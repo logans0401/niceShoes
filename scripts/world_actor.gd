@@ -131,11 +131,15 @@ func _apply_meditation_ticks(delta: float) -> void:
 	_med_hp_t += delta
 	while _med_hp_t >= GameConstants.MEDITATION_HEALTH_INTERVAL_SEC:
 		_med_hp_t -= GameConstants.MEDITATION_HEALTH_INTERVAL_SEC
-		meditation_resource_tick.emit(character_id, &"health", GameConstants.MEDITATION_HEALTH_AMOUNT)
+		meditation_resource_tick.emit(
+			character_id, &"health", GameConstants.MEDITATION_HEALTH_AMOUNT
+		)
 	_med_st_t += delta
 	while _med_st_t >= GameConstants.MEDITATION_STAMINA_INTERVAL_SEC:
 		_med_st_t -= GameConstants.MEDITATION_STAMINA_INTERVAL_SEC
-		meditation_resource_tick.emit(character_id, &"stamina", GameConstants.MEDITATION_STAMINA_AMOUNT)
+		meditation_resource_tick.emit(
+			character_id, &"stamina", GameConstants.MEDITATION_STAMINA_AMOUNT
+		)
 	velocity = velocity.move_toward(Vector2.ZERO, friction * delta)
 	move_and_slide()
 

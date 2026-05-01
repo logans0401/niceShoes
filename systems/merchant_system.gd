@@ -25,7 +25,9 @@ func get_merchant_stock(merchant_id: StringName) -> Array:
 	return _stock.get(merchant_id, []) as Array
 
 
-func buy_item(buyer_id: StringName, merchant_id: StringName, item_id: StringName, quantity: int = 1) -> Error:
+func buy_item(
+	buyer_id: StringName, merchant_id: StringName, item_id: StringName, quantity: int = 1
+) -> Error:
 	if quantity <= 0 or _catalog == null or _inventory == null or _registry == null:
 		return FAILED
 	var def: Resource = _catalog.get_definition(item_id)
@@ -50,7 +52,9 @@ func buy_item(buyer_id: StringName, merchant_id: StringName, item_id: StringName
 	return OK
 
 
-func sell_from_bag(seller_id: StringName, merchant_id: StringName, bag_index: int, quantity: int = 1) -> Error:
+func sell_from_bag(
+	seller_id: StringName, merchant_id: StringName, bag_index: int, quantity: int = 1
+) -> Error:
 	if quantity <= 0 or _catalog == null or _inventory == null or _registry == null:
 		return FAILED
 	var cell: Variant = _inventory.get_cell(seller_id, bag_index)

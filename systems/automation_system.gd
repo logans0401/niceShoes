@@ -12,9 +12,11 @@ signal task_resumed(runner_id: StringName, task: Variant)
 signal status_logged(runner_id: StringName, message: String)
 signal queue_changed
 signal runner_queue_changed(runner_id: StringName)
-## Emitted once per tick while a world-driven HUNT task is active (not `sim_only`). UI/world resolves targets and may mutate `task.data` (e.g. `kills_achieved`).
+## Emitted once per tick while a world-driven HUNT task is active (not `sim_only`). UI/world resolves
+## targets and may mutate `task.data` (e.g. `kills_achieved`).
 signal hunt_world_pulse(runner_id: StringName, task: Variant)
-## Emitted once per tick while ASSIST_COMBAT is active; shell steers the runner's character toward enemies threatening `task.data["ally_character_id"]`.
+## Emitted once per tick while ASSIST_COMBAT is active; shell steers the runner's character toward
+## enemies threatening `task.data["ally_character_id"]`.
 signal assist_world_pulse(runner_id: StringName, task: Variant)
 
 const PREVIOUS_TASK_CAP: int = 24
@@ -39,6 +41,7 @@ enum TaskType {
 	## Fight enemies that the ally has engaged (hostile toward ally) or that threaten them nearby.
 	ASSIST_COMBAT,
 }
+
 
 class AutomationTask:
 	static var _id_seq: int = 1
@@ -260,7 +263,9 @@ func set_task_priority_by_task_id(runner_id: StringName, task_id: int, new_prior
 			return
 
 
-func set_task_interruptible_by_task_id(runner_id: StringName, task_id: int, interruptible: bool) -> void:
+func set_task_interruptible_by_task_id(
+	runner_id: StringName, task_id: int, interruptible: bool
+) -> void:
 	if not _runners.has(runner_id):
 		return
 	var st: _QueueState = _runners[runner_id]
@@ -548,7 +553,10 @@ func _advance_task(st: _QueueState, task: AutomationTask, _delta: float) -> bool
 		TaskType.SELL_EXCESS_LOOT:
 			if task.data.get("announce_sell", true):
 				task.data["announce_sell"] = false
-				_log(st, "Selling excess (merchant=%s)" % str(task.data.get("merchant_id", "default")))
+				_log(
+					st,
+					"Selling excess (merchant=%s)" % str(task.data.get("merchant_id", "default"))
+				)
 		_:
 			pass
 

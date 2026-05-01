@@ -26,7 +26,9 @@ const SKILL_MISSILE_DEFENSE := "missile_defense"
 const SKILL_ARCANE_CONNECTION := "arcane_connection"
 
 ## Plain literal arrays — `PackedStringArray([...])` is not a const expression in GDScript 4.6.
-const ALL_ATTRIBUTES: Array[String] = ["strength", "heartiness", "ability", "reflexes", "mind", "wisdom"]
+const ALL_ATTRIBUTES: Array[String] = [
+	"strength", "heartiness", "ability", "reflexes", "mind", "wisdom"
+]
 
 const ALL_SKILLS: Array[String] = [
 	"cooking",

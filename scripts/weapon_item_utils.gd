@@ -4,10 +4,14 @@ class_name WeaponItemUtils
 const _EqScr := preload("res://scripts/equipment_schema.gd")
 
 
-static func main_hand_definition(character_id: StringName, equipment: Node, catalog: Node) -> Resource:
+static func main_hand_definition(
+	character_id: StringName, equipment: Node, catalog: Node
+) -> Resource:
 	if equipment == null or catalog == null:
 		return null
-	var iid: StringName = equipment.get_equipped_item(character_id, StringName(_EqScr.SLOT_MAIN_HAND))
+	var iid: StringName = equipment.get_equipped_item(
+		character_id, StringName(_EqScr.SLOT_MAIN_HAND)
+	)
 	if iid == &"":
 		return null
 	return catalog.get_definition(iid)

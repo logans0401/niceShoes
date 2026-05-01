@@ -19,7 +19,9 @@ func configure(catalog: Node) -> void:
 	_catalog = catalog
 
 
-func create_cell(item_id: StringName, quantity: int = 1, loot_tier: int = 1, source: String = "") -> Dictionary:
+func create_cell(
+	item_id: StringName, quantity: int = 1, loot_tier: int = 1, source: String = ""
+) -> Dictionary:
 	var inst_id: StringName = create_instance(item_id, loot_tier, source)
 	return {"item_id": item_id, "instance_id": inst_id, "quantity": quantity}
 
@@ -171,7 +173,9 @@ func _apply_tier_scaling(inst: Resource) -> void:
 	if inst.armor_level > 0.0:
 		inst.armor_level *= tier_bonus
 		for k in inst.armor_ratings.keys():
-			inst.armor_ratings[k] = clampi(int(round(float(inst.armor_ratings[k]) * tier_bonus)), 0, 10)
+			inst.armor_ratings[k] = clampi(
+				int(round(float(inst.armor_ratings[k]) * tier_bonus)), 0, 10
+			)
 
 
 func _roll_value_modifiers(inst: Resource) -> void:
@@ -189,7 +193,9 @@ func _roll_value_modifiers(inst: Resource) -> void:
 				metal_v = randf_range(0.04, 0.07)
 				var dmg_mult: float = randf_range(1.03, 1.08)
 				inst.damage_min = maxi(1, int(round(float(inst.damage_min) * dmg_mult)))
-				inst.damage_max = maxi(inst.damage_min, int(round(float(inst.damage_max) * dmg_mult)))
+				inst.damage_max = maxi(
+					inst.damage_min, int(round(float(inst.damage_max) * dmg_mult))
+				)
 			else:
 				inst.armor_level *= randf_range(1.04, 1.08)
 			_add_value_modifier(inst, "metal", metal_v)
@@ -197,7 +203,9 @@ func _roll_value_modifiers(inst: Resource) -> void:
 		_add_value_modifier(inst, "metal", randf_range(0.05, 0.09))
 	if inst.item_type == "accessory" and randf() < 0.15:
 		_add_value_modifier(inst, "metal", randf_range(0.11, 0.35))
-	var jewel_chance: float = 0.05 if inst.item_type == "armor" or inst.weapon_kind == "melee" else 0.15
+	var jewel_chance: float = (
+		0.05 if inst.item_type == "armor" or inst.weapon_kind == "melee" else 0.15
+	)
 	if randf() < jewel_chance:
 		var jewels: int = 2 if randf() < 0.35 else 1
 		var pct: float = randf_range(0.13, 0.18) if jewels >= 2 else randf_range(0.07, 0.11)
@@ -229,13 +237,19 @@ func _roll_magic(inst: Resource, _source: String) -> void:
 			inst.modifiers["arcane_connection_multiplier"] = randf_range(1.04, 1.14)
 		else:
 			inst.modifiers["spell_extra_damage_percent"] = randf_range(0.10, 0.20)
-			inst.modifiers["spell_extra_damage_type"] = randi_range(DamageTypes.Id.FIRE, DamageTypes.Id.ACID)
+			inst.modifiers["spell_extra_damage_type"] = randi_range(
+				DamageTypes.Id.FIRE, DamageTypes.Id.ACID
+			)
 	else:
 		inst.modifiers["melee_defense_multiplier"] = randf_range(1.02, 1.08)
 
 
 func _roll_magic_spells_for_item(inst: Resource) -> Array[StringName]:
-	var chances: Array[float] = ACCESSORY_MAGIC_SPELL_CHANCES if inst.item_type == "accessory" else WEARABLE_MAGIC_SPELL_CHANCES
+	var chances: Array[float] = (
+		ACCESSORY_MAGIC_SPELL_CHANCES
+		if inst.item_type == "accessory"
+		else WEARABLE_MAGIC_SPELL_CHANCES
+	)
 	var rolled: Array[StringName] = []
 	for chance in chances:
 		if rolled.size() >= MAX_MAGIC_SPELLS_PER_ITEM:

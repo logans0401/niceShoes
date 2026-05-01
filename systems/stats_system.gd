@@ -102,15 +102,20 @@ func _compute(data: Resource, equipment: Node, character_id: StringName) -> Dict
 	## Skill modifiers use stretched attributes so Z=100 creation does not explode combat math.
 	var attrs_for_skills: Dictionary = penalized_attrs
 	if cfg is CharacterBalanceConfig:
-		attrs_for_skills = (cfg as CharacterBalanceConfig).attributes_for_skill_formulas(penalized_attrs)
+		attrs_for_skills = (cfg as CharacterBalanceConfig).attributes_for_skill_formulas(
+			penalized_attrs
+		)
 
 	## Skill modifiers = (weighted attributes / skill_base_divisor) + (rank × skill_rank_modifier_scale); see CharacterBalanceConfig.
 	## Ranks include bought XP ranks plus transient_skill_bonus (buffs), matching combat/display intent.
 	var mods: Dictionary
 	if cfg is CharacterBalanceConfig:
-		mods = (cfg as CharacterBalanceConfig).get_all_skill_total_modifiers(
-			attrs_for_skills,
-			_merged_skill_ranks_for_modifiers(data),
+		mods = (
+			(cfg as CharacterBalanceConfig)
+			. get_all_skill_total_modifiers(
+				attrs_for_skills,
+				_merged_skill_ranks_for_modifiers(data),
+			)
 		)
 	else:
 		mods = cfg.get_all_skill_modifiers(attrs_for_skills)
@@ -199,9 +204,14 @@ func _compute(data: Resource, equipment: Node, character_id: StringName) -> Dict
 		"stamina_regen_multiplier": float(pen.get("stamina_regen_multiplier", 1.0)),
 		"death_penalty_percent": death_penalty,
 		"melee_attack_interval_sec": _melee_attack_interval(reflex, ability, equip_effects, pen),
-		"armor_by_area": _armor_by_area_with_transient_bonus(equip_effects.get("armor_by_area", {}) as Dictionary, data),
-		"damage_type_protection_percent": (data.transient_damage_protection_percent as Dictionary).duplicate(true),
-		"arcane_connection_multiplier": float(equip_effects.get("arcane_connection_multiplier", 1.0)),
+		"armor_by_area":
+		_armor_by_area_with_transient_bonus(
+			equip_effects.get("armor_by_area", {}) as Dictionary, data
+		),
+		"damage_type_protection_percent":
+		(data.transient_damage_protection_percent as Dictionary).duplicate(true),
+		"arcane_connection_multiplier":
+		float(equip_effects.get("arcane_connection_multiplier", 1.0)),
 		"spell_extra_damage_percent": float(equip_effects.get("spell_extra_damage_percent", 0.0)),
 		"spell_extra_damage_type": int(equip_effects.get("spell_extra_damage_type", -1)),
 		"effective_attributes": penalized_attrs,
@@ -224,11 +234,15 @@ func _armor_by_area_with_transient_bonus(base_armor: Dictionary, data: Resource)
 	return out
 
 
-func _melee_attack_interval(reflex: float, ability: float, equip_effects: Dictionary, burden_penalty: Dictionary) -> float:
+func _melee_attack_interval(
+	reflex: float, ability: float, equip_effects: Dictionary, burden_penalty: Dictionary
+) -> float:
 	if _combat_balance == null:
 		_combat_balance = load("res://data/default_combat_balance.tres") as Resource
 	var base: float = _combat_balance.unarmed_attack_interval_sec
-	var stat_factor: float = maxf(0.35, 1.0 - maxf(0.0, reflex - 10.0) * 0.012 - maxf(0.0, ability - 10.0) * 0.006)
+	var stat_factor: float = maxf(
+		0.35, 1.0 - maxf(0.0, reflex - 10.0) * 0.012 - maxf(0.0, ability - 10.0) * 0.006
+	)
 	var equip_bonus: float = float(equip_effects.get("attack_speed_bonus", 0.0))
 	var burden_mult: float = float(burden_penalty.get("attack_speed_multiplier", 1.0))
 	return maxf(0.5, base * stat_factor * burden_mult / maxf(0.2, 1.0 + equip_bonus))
@@ -241,7 +255,9 @@ func _equipment_effects(equipment: Node, character_id: StringName) -> Dictionary
 	if not equipment.has_method("get_equipped_details"):
 		return effects
 	for slot in equipment.get_loadout(character_id).keys():
-		var details: Dictionary = equipment.call("get_equipped_details", character_id, StringName(slot)) as Dictionary
+		var details: Dictionary = (
+			equipment.call("get_equipped_details", character_id, StringName(slot)) as Dictionary
+		)
 		if details.is_empty():
 			continue
 		var mods: Dictionary = details.get("modifiers", {}) as Dictionary

@@ -72,7 +72,11 @@ func load_registry(
 			return err
 	var ver: int = int(root.get("version", 1))
 	if ver >= 2:
-		if item_instances != null and root.has("item_instances") and item_instances.has_method("import_state"):
+		if (
+			item_instances != null
+			and root.has("item_instances")
+			and item_instances.has_method("import_state")
+		):
 			item_instances.import_state(root["item_instances"] as Dictionary)
 		if inventory != null and root.has("inventory") and inventory.has_method("import_state"):
 			inventory.import_state(root["inventory"] as Dictionary)

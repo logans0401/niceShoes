@@ -38,7 +38,9 @@ func resolve_melee_hit(
 		var rolled: float = float(randi_range(lo, hi))
 		raw = maxf(1.0, rolled + atk - def * 0.35)
 	var target_area: StringName = _combat_balance.pick_body_area()
-	var mitigated: Dictionary = _apply_area_mitigation(raw, defender_stats, target_area, damage_type)
+	var mitigated: Dictionary = _apply_area_mitigation(
+		raw, defender_stats, target_area, damage_type
+	)
 	var damage: float = snappedf(float(mitigated.get("damage", raw)), 0.5)
 	var dt: StringName = DamageTypes.id_to_string(damage_type)
 	combat_event_logged.emit("Hit %s (%s) for %.1f" % [String(target_area), String(dt), damage])
@@ -57,7 +59,9 @@ func apply_damage(_target_id: StringName, amount: float) -> void:
 	combat_event_logged.emit("Applied %.1f damage (no vitals target)" % amount)
 
 
-func apply_vitals_damage(registry: Node, stats: Node, character_id: StringName, amount: float) -> Dictionary:
+func apply_vitals_damage(
+	registry: Node, stats: Node, character_id: StringName, amount: float
+) -> Dictionary:
 	if registry == null or amount <= 0.0:
 		return {"died": false}
 	if not registry.has_method("get_character"):
@@ -67,7 +71,9 @@ func apply_vitals_damage(registry: Node, stats: Node, character_id: StringName, 
 		return {"died": false}
 	var cur: float = float(data.current_health)
 	data.current_health = maxf(0.0, cur - amount)
-	combat_event_logged.emit("%s took %.1f damage (%.1f HP left)" % [String(character_id), amount, data.current_health])
+	combat_event_logged.emit(
+		"%s took %.1f damage (%.1f HP left)" % [String(character_id), amount, data.current_health]
+	)
 	if stats != null and stats.has_method("invalidate"):
 		stats.invalidate(character_id)
 	var died: bool = cur > 0.0 and data.current_health <= 0.0
@@ -83,11 +89,15 @@ func _apply_area_mitigation(
 	damage_type: int,
 ) -> Dictionary:
 	var by_area: Dictionary = defender_stats.get("armor_by_area", {}) as Dictionary
-	var area_stats: Dictionary = by_area.get(target_area, by_area.get(String(target_area), {})) as Dictionary
+	var area_stats: Dictionary = (
+		by_area.get(target_area, by_area.get(String(target_area), {})) as Dictionary
+	)
 	var armor_level: float = float(area_stats.get("armor_level", 0.0))
 	var ratings: Dictionary = area_stats.get("damage_ratings", {}) as Dictionary
 	var rating: float = float(ratings.get(damage_type, ratings.get(str(damage_type), 0.0)))
-	var protections: Dictionary = defender_stats.get("damage_type_protection_percent", {}) as Dictionary
+	var protections: Dictionary = (
+		defender_stats.get("damage_type_protection_percent", {}) as Dictionary
+	)
 	var protection_percent: float = clampf(
 		float(protections.get(damage_type, protections.get(str(damage_type), 0.0))),
 		0.0,

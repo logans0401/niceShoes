@@ -7,17 +7,22 @@ signal quest_state_changed(quest_id: StringName, new_state: int)
 
 ## Static catalog for journal UI (id -> title, description).
 const QUEST_CATALOG: Dictionary = {
-	&"demo_gate": {
+	&"demo_gate":
+	{
 		"title": "Secure the northern gate",
 		"description": "Hold the post until relief arrives. Keep the approach clear of hostiles.",
 	},
-	&"demo_supplies": {
+	&"demo_supplies":
+	{
 		"title": "Deliver supplies to camp",
-		"description": "Carry rations to the forward camp without losing the cart to bandits or mud.",
+		"description":
+		"Carry rations to the forward camp without losing the cart to bandits or mud.",
 	},
-	&"demo_road": {
+	&"demo_road":
+	{
 		"title": "Map the sunken road",
-		"description": "Survey the flooded causeway and return with a marked safe route for wagons.",
+		"description":
+		"Survey the flooded causeway and return with a marked safe route for wagons.",
 	},
 }
 

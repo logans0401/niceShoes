@@ -20,7 +20,9 @@ func configure(inventory: Node, trade_system: Node, inv_balance: Resource) -> vo
 
 
 func register_corpse(corpse_id: StringName, bag_snapshot: Array, world_position: Vector2) -> void:
-	_corpses[corpse_id] = {"bag": bag_snapshot, "position": world_position, "ttl": corpse_decay_seconds}
+	_corpses[corpse_id] = {
+		"bag": bag_snapshot, "position": world_position, "ttl": corpse_decay_seconds
+	}
 
 
 func list_corpse_ids() -> PackedStringArray:
@@ -69,7 +71,9 @@ func loot_bag_slot_to_character(
 	var corpse_pos: Vector2 = get_corpse_position(corpse_id)
 	var max_r: float = float(_inv_cfg.trade_range)
 	if looter_pos.distance_to(corpse_pos) > max_r:
-		_last_loot_failure_reason = "range %.1f > %.1f" % [looter_pos.distance_to(corpse_pos), max_r]
+		_last_loot_failure_reason = (
+			"range %.1f > %.1f" % [looter_pos.distance_to(corpse_pos), max_r]
+		)
 		return FAILED
 	var cdict: Dictionary = cell as Dictionary
 	var qty: int = int(cdict.get("quantity", 0))

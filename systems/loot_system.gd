@@ -24,8 +24,7 @@ func configure(
 	_inventory = inventory
 	_item_instances = item_instances
 	_combat_balance = combat_balance
-	if _combat_balance == null:
-		_combat_balance = load("res://data/default_combat_balance.tres") as Resource
+	_ensure_combat_balance()
 	_loot_table = loot_table
 	if _loot_table == null:
 		_loot_table = load("res://data/default_loot_table.tres") as Resource
@@ -95,7 +94,9 @@ func register_corpse_from_character(
 	_corpse.register_corpse(corpse_id, snap, world_position)
 
 
-func register_corpse_with_drops(corpse_id: StringName, world_position: Vector2, loot_tier: int) -> void:
+func register_corpse_with_drops(
+	corpse_id: StringName, world_position: Vector2, loot_tier: int
+) -> void:
 	if _corpse == null:
 		return
 	var drops: Array = roll_drops(corpse_id, StringName("tier_%d" % clampi(loot_tier, 1, 20)))
@@ -103,6 +104,11 @@ func register_corpse_with_drops(corpse_id: StringName, world_position: Vector2, 
 
 
 func level_to_loot_tier(level: int) -> int:
-	if _combat_balance == null:
-		_combat_balance = load("res://data/default_combat_balance.tres") as Resource
+	_ensure_combat_balance()
 	return _combat_balance.level_to_loot_tier(level)
+
+
+func _ensure_combat_balance() -> void:
+	if _combat_balance != null:
+		return
+	_combat_balance = load("res://data/default_combat_balance.tres") as Resource

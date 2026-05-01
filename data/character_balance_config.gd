@@ -88,7 +88,9 @@ func get_total_xp_for_level(level: int) -> int:
 	if level <= 1:
 		return 0
 	var tier: float = float(level - 1)
-	var raw: float = level_xp_flat_per_tier * tier + level_xp_linear_scale * pow(tier, level_xp_power)
+	var raw: float = (
+		level_xp_flat_per_tier * tier + level_xp_linear_scale * pow(tier, level_xp_power)
+	)
 	return maxi(0, int(round(raw)))
 
 
@@ -161,57 +163,68 @@ func get_unspent_cost_for_xp_purchase_count(purchases_already: int) -> int:
 func get_skill_attribute_weights() -> Dictionary:
 	# Design: each skill pulls primarily from thematically aligned attributes.
 	return {
-		_Sch.SKILL_COOKING: {
+		_Sch.SKILL_COOKING:
+		{
 			_Sch.ATTRIBUTE_HEARTINESS: 0.35,
 			_Sch.ATTRIBUTE_MIND: 0.35,
 			_Sch.ATTRIBUTE_ABILITY: 0.30,
 		},
-		_Sch.SKILL_ALCHEMY: {
+		_Sch.SKILL_ALCHEMY:
+		{
 			_Sch.ATTRIBUTE_MIND: 0.45,
 			_Sch.ATTRIBUTE_WISDOM: 0.35,
 			_Sch.ATTRIBUTE_ABILITY: 0.20,
 		},
-		_Sch.SKILL_FLETCHING: {
+		_Sch.SKILL_FLETCHING:
+		{
 			_Sch.ATTRIBUTE_ABILITY: 0.40,
 			_Sch.ATTRIBUTE_REFLEXES: 0.35,
 			_Sch.ATTRIBUTE_STRENGTH: 0.25,
 		},
-		_Sch.SKILL_MELEE_COMBAT: {
+		_Sch.SKILL_MELEE_COMBAT:
+		{
 			_Sch.ATTRIBUTE_STRENGTH: 0.45,
 			_Sch.ATTRIBUTE_REFLEXES: 0.30,
 			_Sch.ATTRIBUTE_ABILITY: 0.25,
 		},
-		_Sch.SKILL_MISSILE_COMBAT: {
+		_Sch.SKILL_MISSILE_COMBAT:
+		{
 			_Sch.ATTRIBUTE_REFLEXES: 0.45,
 			_Sch.ATTRIBUTE_ABILITY: 0.35,
 			_Sch.ATTRIBUTE_STRENGTH: 0.20,
 		},
-		_Sch.SKILL_MAGIC_COMBAT: {
+		_Sch.SKILL_MAGIC_COMBAT:
+		{
 			_Sch.ATTRIBUTE_MIND: 0.40,
 			_Sch.ATTRIBUTE_WISDOM: 0.35,
 			_Sch.ATTRIBUTE_ABILITY: 0.25,
 		},
-		_Sch.SKILL_MAGIC_SUPPORT: {
+		_Sch.SKILL_MAGIC_SUPPORT:
+		{
 			_Sch.ATTRIBUTE_WISDOM: 0.45,
 			_Sch.ATTRIBUTE_MIND: 0.35,
 			_Sch.ATTRIBUTE_HEARTINESS: 0.20,
 		},
-		_Sch.SKILL_MELEE_DEFENSE: {
+		_Sch.SKILL_MELEE_DEFENSE:
+		{
 			_Sch.ATTRIBUTE_HEARTINESS: 0.40,
 			_Sch.ATTRIBUTE_STRENGTH: 0.30,
 			_Sch.ATTRIBUTE_REFLEXES: 0.30,
 		},
-		_Sch.SKILL_MAGIC_DEFENSE: {
+		_Sch.SKILL_MAGIC_DEFENSE:
+		{
 			_Sch.ATTRIBUTE_WISDOM: 0.40,
 			_Sch.ATTRIBUTE_MIND: 0.35,
 			_Sch.ATTRIBUTE_HEARTINESS: 0.25,
 		},
-		_Sch.SKILL_MISSILE_DEFENSE: {
+		_Sch.SKILL_MISSILE_DEFENSE:
+		{
 			_Sch.ATTRIBUTE_REFLEXES: 0.40,
 			_Sch.ATTRIBUTE_HEARTINESS: 0.30,
 			_Sch.ATTRIBUTE_ABILITY: 0.30,
 		},
-		_Sch.SKILL_ARCANE_CONNECTION: {
+		_Sch.SKILL_ARCANE_CONNECTION:
+		{
 			_Sch.ATTRIBUTE_MIND: 0.40,
 			_Sch.ATTRIBUTE_WISDOM: 0.40,
 			_Sch.ATTRIBUTE_ABILITY: 0.20,
@@ -246,7 +259,9 @@ func get_skill_base_from_attributes(skill_id: StringName, attributes: Dictionary
 
 ## Combat/display base modifier: (weighted attribute sum) / skill_base_divisor — same shape as "(Str + Ability) / 3" but using full weight tables.
 func get_skill_base_modifier(skill_id: StringName, attributes: Dictionary) -> float:
-	return get_skill_modifier_from_attributes(skill_id, attributes) / maxf(0.001, skill_base_divisor)
+	return (
+		get_skill_modifier_from_attributes(skill_id, attributes) / maxf(0.001, skill_base_divisor)
+	)
 
 
 func get_skill_training_modifier(_skill_id: StringName, skill_rank: int) -> float:
@@ -254,8 +269,13 @@ func get_skill_training_modifier(_skill_id: StringName, skill_rank: int) -> floa
 
 
 ## Total skill modifier used in combat ratings: base (from attributes) + training (from XP ranks).
-func get_skill_total_modifier(skill_id: StringName, attributes: Dictionary, skill_rank: int) -> float:
-	return get_skill_base_modifier(skill_id, attributes) + get_skill_training_modifier(skill_id, skill_rank)
+func get_skill_total_modifier(
+	skill_id: StringName, attributes: Dictionary, skill_rank: int
+) -> float:
+	return (
+		get_skill_base_modifier(skill_id, attributes)
+		+ get_skill_training_modifier(skill_id, skill_rank)
+	)
 
 
 func get_all_skill_total_modifiers(attributes: Dictionary, skill_levels: Dictionary) -> Dictionary:

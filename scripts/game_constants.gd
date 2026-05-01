@@ -32,7 +32,8 @@ const HUNT_PARTY_SEPARATION_PX := 30.0
 const HUNT_PARTY_SEPARATION_BLEND := 0.62
 
 
-## Uniform zoom for `Camera2D` so the viewport shows at least `VISIBLE_PLAY_AREA_TILES_*` tiles (fits the tighter axis, shows slightly more on the other).
+## Uniform zoom for `Camera2D` so the viewport shows at least `VISIBLE_PLAY_AREA_TILES_*` tiles (fits the
+## tighter axis, shows slightly more on the other).
 static func default_camera_zoom_for_viewport(viewport_size: Vector2) -> float:
 	var target_w: float = float(VISIBLE_PLAY_AREA_TILES_X * TILE_SIZE_PX)
 	var target_h: float = float(VISIBLE_PLAY_AREA_TILES_Y * TILE_SIZE_PX)

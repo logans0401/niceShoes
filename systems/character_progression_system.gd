@@ -19,8 +19,7 @@ func configure(registry: Node, balance: Resource, combat_balance: Resource = nul
 	_registry = registry
 	_balance = balance
 	_combat_balance = combat_balance
-	if _combat_balance == null:
-		_combat_balance = load("res://data/default_combat_balance.tres") as Resource
+	_ensure_combat_balance()
 
 
 ## All XP gains: increases lifetime total (level) and unspent pool by the same amount.
@@ -135,7 +134,9 @@ func add_skill_experience(character_id: StringName, _skill_id: StringName, amoun
 	add_total_experience(character_id, amount)
 
 
-func add_attribute_experience(character_id: StringName, _attribute_id: StringName, amount: int) -> void:
+func add_attribute_experience(
+	character_id: StringName, _attribute_id: StringName, amount: int
+) -> void:
 	add_total_experience(character_id, amount)
 
 
@@ -143,11 +144,18 @@ func apply_death_penalty(character_id: StringName) -> void:
 	var data: Resource = _registry.get_character(character_id)
 	if data == null:
 		return
-	if _combat_balance == null:
-		_combat_balance = load("res://data/default_combat_balance.tres") as Resource
+	_ensure_combat_balance()
 	var cur: float = float(data.meta.get("death_penalty_percent", 0.0))
-	var next: float = minf(_combat_balance.death_penalty_max, cur + _combat_balance.death_penalty_per_death)
+	var next: float = minf(
+		_combat_balance.death_penalty_max, cur + _combat_balance.death_penalty_per_death
+	)
 	data.meta["death_penalty_percent"] = next
+
+
+func _ensure_combat_balance() -> void:
+	if _combat_balance != null:
+		return
+	_combat_balance = load("res://data/default_combat_balance.tres") as Resource
 
 
 func _reduce_death_penalty(data: Resource, amount: int) -> void:

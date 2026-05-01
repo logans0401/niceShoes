@@ -1,0 +1,2 @@
+# Dev-only: GDScript format + lint (Godot 4). Install into project venv — see scripts/bootstrap_dev_env.ps1
+gdtoolkit>=4.5,<5

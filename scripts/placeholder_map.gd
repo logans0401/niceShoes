@@ -38,12 +38,14 @@ func _apply_main_map_floor_polygon() -> void:
 	if floor_node == null:
 		return
 	var h: Vector2 = _main_map_half_size()
-	floor_node.polygon = PackedVector2Array([
-		Vector2(-h.x, -h.y),
-		Vector2(h.x, -h.y),
-		Vector2(h.x, h.y),
-		Vector2(-h.x, h.y),
-	])
+	floor_node.polygon = PackedVector2Array(
+		[
+			Vector2(-h.x, -h.y),
+			Vector2(h.x, -h.y),
+			Vector2(h.x, h.y),
+			Vector2(-h.x, h.y),
+		]
+	)
 
 
 func _ensure_navigation_region() -> void:
@@ -55,12 +57,14 @@ func _ensure_navigation_region() -> void:
 	var h: Vector2 = _main_map_half_size()
 	## Half-tile inset from the floor so paths stay inside walkable art.
 	var inset: float = float(GameConstants.TILE_SIZE_PX) * 0.5
-	var outline := PackedVector2Array([
-		Vector2(-h.x + inset, -h.y + inset),
-		Vector2(h.x - inset, -h.y + inset),
-		Vector2(h.x - inset, h.y - inset),
-		Vector2(-h.x + inset, h.y - inset),
-	])
+	var outline := PackedVector2Array(
+		[
+			Vector2(-h.x + inset, -h.y + inset),
+			Vector2(h.x - inset, -h.y + inset),
+			Vector2(h.x - inset, h.y - inset),
+			Vector2(-h.x + inset, h.y - inset),
+		]
+	)
 	poly.add_outline(outline)
 	poly.make_polygons_from_outlines()
 	region.navigation_polygon = poly

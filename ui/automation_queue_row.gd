@@ -7,7 +7,7 @@ func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 	return data is Dictionary and (data as Dictionary).get("automation_queue_drag", false) == true
 
 
-func _drop_data(at_position: Vector2, data: Variant) -> void:
+func _drop_data(_at_position: Vector2, data: Variant) -> void:
 	var d: Dictionary = data as Dictionary
 	var from_i: int = int(d.get("from_index", -1))
 	if from_i < 0:

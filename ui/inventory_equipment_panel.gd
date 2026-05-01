@@ -112,7 +112,9 @@ func _apply_slot_highlight() -> void:
 
 func _build_equipment_slots() -> void:
 	if _equip_grid == null:
-		push_error("InventoryEquipmentPanel: EquipGrid not ready — setup() must run after the panel's _ready().")
+		push_error(
+			"InventoryEquipmentPanel: EquipGrid not ready — setup() must run after the panel's _ready()."
+		)
 		return
 	for c in _equip_grid.get_children():
 		c.queue_free()
@@ -133,7 +135,9 @@ func _build_equipment_slots() -> void:
 
 func _build_bag_slots() -> void:
 	if _bag_grid == null:
-		push_error("InventoryEquipmentPanel: BagGrid not ready — setup() must run after the panel's _ready().")
+		push_error(
+			"InventoryEquipmentPanel: BagGrid not ready — setup() must run after the panel's _ready()."
+		)
 		return
 	for c in _bag_grid.get_children():
 		c.queue_free()
@@ -161,12 +165,15 @@ func refresh() -> void:
 		return
 	var eq: Node = _equipment
 	var st: Dictionary = _stats.get_effective_stats(_char_id, data, eq)
-	_burden_label.text = "Currency: %d  |  Burden: %.1f / %.1f  (ratio %.2f)" % [
-		int(data.gold),
-		float(data.laden_burden),
-		float(st.get("burden_capacity", 1.0)),
-		float(st.get("burden_ratio", 0.0)),
-	]
+	_burden_label.text = (
+		"Currency: %d  |  Burden: %.1f / %.1f  (ratio %.2f)"
+		% [
+			int(data.gold),
+			float(data.laden_burden),
+			float(st.get("burden_capacity", 1.0)),
+			float(st.get("burden_ratio", 0.0)),
+		]
+	)
 	var bag: Array = _inventory.get_bag_copy(_char_id)
 	for i in range(_bag_buttons.size()):
 		var btn: Button = _bag_buttons[i] as Button
@@ -230,8 +237,14 @@ func _select_equip_slot(slot: String) -> void:
 		return
 	var sid: StringName = StringName(slot)
 	var iid: String = String(_equipment.get_equipped_item(_char_id, sid))
-	var key: String = String(_equipment.call("get_equipped_key", _char_id, sid)) if _equipment.has_method("get_equipped_key") else iid
-	_emit_inv_selection({"source": "equip", "equip_slot": slot, "item_id": iid, "instance_id": key, "quantity": 1})
+	var key: String = (
+		String(_equipment.call("get_equipped_key", _char_id, sid))
+		if _equipment.has_method("get_equipped_key")
+		else iid
+	)
+	_emit_inv_selection(
+		{"source": "equip", "equip_slot": slot, "item_id": iid, "instance_id": key, "quantity": 1}
+	)
 
 
 func _select_bag_slot(index: int) -> void:
@@ -244,9 +257,19 @@ func _select_bag_slot(index: int) -> void:
 			iid = String(_cell_item_id(d))
 			qty = int(d.get("quantity", 1))
 			var inst_id: String = String(d.get("instance_id", ""))
-			_emit_inv_selection({"source": "bag", "index": index, "item_id": iid, "instance_id": inst_id, "quantity": qty})
+			_emit_inv_selection(
+				{
+					"source": "bag",
+					"index": index,
+					"item_id": iid,
+					"instance_id": inst_id,
+					"quantity": qty
+				}
+			)
 			return
-	_emit_inv_selection({"source": "bag", "index": index, "item_id": iid, "instance_id": "", "quantity": qty})
+	_emit_inv_selection(
+		{"source": "bag", "index": index, "item_id": iid, "instance_id": "", "quantity": qty}
+	)
 
 
 func _unequip_slot(slot: String) -> void:

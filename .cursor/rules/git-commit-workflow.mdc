@@ -9,11 +9,12 @@ Assume the user does not run Git commands. You manage version control for `D:\Pr
 
 ## When to commit
 
-After you **finish** substantive code or asset changes from the user’s prompt (unless they explicitly say not to commit):
+Before you **finish** substantive code or asset changes from the user's prompt (unless they explicitly say not to commit):
 
-1. Run `git status` in the project root.
-2. `git add` only files that belong to the work just completed.
-3. `git commit -m "…"` with a short, imperative summary (optional prefix: `feat:`, `fix:`, `refactor:`, `ui:`, `test:`).
+1. If the batch touches **`.gd`**, scenes, or **`project.godot`**, run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check_quality.ps1` from the project root and fix failures before committing.
+2. Run `git status` in the project root.
+3. `git add` only files that belong to the work just completed.
+4. `git commit -m "…"` with a short, imperative summary (optional prefix: `feat:`, `fix:`, `refactor:`, `ui:`, `test:`).
 
 Commit **once per logical batch** from that prompt. If one reply contains **unrelated** fixes (e.g. separate bug + feature), prefer **separate commits** so history stays readable.
 

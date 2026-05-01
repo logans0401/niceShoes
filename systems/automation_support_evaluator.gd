@@ -1,6 +1,7 @@
 class_name AutomationSupportEvaluator
 extends RefCounted
 
+
 ## Scans threshold profiles and injects short SUPPORT_ALLY tasks via enqueue_interruptible_high_priority.
 static func tick(
 	automation: AutomationSystem,

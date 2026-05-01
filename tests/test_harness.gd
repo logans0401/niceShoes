@@ -25,6 +25,8 @@ const AutomationSystemScr := preload("res://systems/automation_system.gd")
 const GameConstantsScr := preload("res://scripts/game_constants.gd")
 const CharacterSchemaScr := preload("res://scripts/character_schema.gd")
 const MagicRulesScr := preload("res://scripts/magic_rules.gd")
+const PRELOAD_CHARACTER_BALANCE := preload("res://data/default_character_balance.tres")
+const PRELOAD_INVENTORY_BALANCE := preload("res://data/default_inventory_balance.tres")
 
 const _MAX_ROSTER := 13
 const _MAX_PARTY := 4
@@ -166,7 +168,7 @@ func _test_character_data() -> bool:
 
 
 func _balance():
-	return load("res://data/default_character_balance.tres")
+	return PRELOAD_CHARACTER_BALANCE
 
 
 func _test_stats() -> bool:
@@ -176,7 +178,7 @@ func _test_stats() -> bool:
 	var eq = EquipmentSystemScr.new()
 	var st = StatsSystemScr.new()
 	st.configure(_balance())
-	st.configure_inventory_penalties(load("res://data/default_inventory_balance.tres") as Resource)
+	st.configure_inventory_penalties(PRELOAD_INVENTORY_BALANCE as Resource)
 	var stats: Dictionary = st.get_effective_stats(&"unit_char", cd, eq)
 	var sm: Dictionary = stats.get("skill_modifiers", {}) as Dictionary
 	var ok: bool = (
@@ -197,8 +199,13 @@ func _test_combat_melee_resolve() -> bool:
 	if not bool(hi.get("hit", false)) or not is_equal_approx(float(hi.get("damage", 0.0)), 10.0):
 		_free_node(combat)
 		return false
-	var floor_dmg: Dictionary = combat.resolve_melee_hit({"attack_rating": 5.0}, {"defense_rating": 20.0})
-	if not bool(floor_dmg.get("hit", false)) or not is_equal_approx(float(floor_dmg.get("damage", 0.0)), 1.0):
+	var floor_dmg: Dictionary = combat.resolve_melee_hit(
+		{"attack_rating": 5.0}, {"defense_rating": 20.0}
+	)
+	if (
+		not bool(floor_dmg.get("hit", false))
+		or not is_equal_approx(float(floor_dmg.get("damage", 0.0)), 1.0)
+	):
 		_free_node(combat)
 		return false
 	var mid: Dictionary = combat.resolve_melee_hit({"attack_rating": 5.0}, {"defense_rating": 10.0})
@@ -212,7 +219,7 @@ func _test_combat_melee_resolve() -> bool:
 func _test_combat_stats_pipeline() -> bool:
 	## Effective attack/defense from StatsSystem should drive melee damage (stronger build > weaker vs same target).
 	var balance = _balance()
-	var inv_bal = load("res://data/default_inventory_balance.tres") as Resource
+	var inv_bal := PRELOAD_INVENTORY_BALANCE
 	var st = StatsSystemScr.new()
 	st.configure(balance)
 	st.configure_inventory_penalties(inv_bal)
@@ -250,10 +257,13 @@ func _test_combat_body_area_mitigation() -> bool:
 	var armor_by_area: Dictionary = {}
 	for area in CombatBalanceScr.BODY_AREAS:
 		armor_by_area[area] = {"armor_level": 5.0, "damage_ratings": {DamageTypes.Id.SLASHING: 5}}
-	var res: Dictionary = combat.resolve_melee_hit(
-		{"attack_rating": 10.0},
-		{"defense_rating": 0.0, "armor_by_area": armor_by_area},
-		DamageTypes.Id.SLASHING,
+	var res: Dictionary = (
+		combat
+		. resolve_melee_hit(
+			{"attack_rating": 10.0},
+			{"defense_rating": 0.0, "armor_by_area": armor_by_area},
+			DamageTypes.Id.SLASHING,
+		)
 	)
 	var ok: bool = (
 		res.has("target_area")
@@ -266,14 +276,20 @@ func _test_combat_body_area_mitigation() -> bool:
 
 func _test_arcane_connection_reduces_mana_cost() -> bool:
 	var base: int = MagicRulesScr.spell_mana_cost(MagicRulesScr.BOLT_FIRE, 1)
-	var reduced: int = MagicRulesScr.spell_mana_cost_after_arcane_connection(MagicRulesScr.BOLT_FIRE, 1, 40.0)
-	var capped: int = MagicRulesScr.spell_mana_cost_after_arcane_connection(MagicRulesScr.BOLT_FIRE, 1, 999.0)
+	var reduced: int = MagicRulesScr.spell_mana_cost_after_arcane_connection(
+		MagicRulesScr.BOLT_FIRE, 1, 40.0
+	)
+	var capped: int = MagicRulesScr.spell_mana_cost_after_arcane_connection(
+		MagicRulesScr.BOLT_FIRE, 1, 999.0
+	)
 	return reduced < base and capped >= 1 and capped <= reduced
 
 
 func _test_buff_spell_catalog() -> bool:
 	var buffs: Dictionary = MagicRulesScr.buff_spell_catalog()
-	var expected_count: int = CharacterSchemaScr.ALL_ATTRIBUTES.size() + CharacterSchemaScr.ALL_SKILLS.size()
+	var expected_count: int = (
+		CharacterSchemaScr.ALL_ATTRIBUTES.size() + CharacterSchemaScr.ALL_SKILLS.size()
+	)
 	if buffs.size() != expected_count:
 		return false
 	for attr in CharacterSchemaScr.ALL_ATTRIBUTES:
@@ -324,7 +340,10 @@ func _test_all_spells_testing_scroll() -> bool:
 	if def == null:
 		cat.free()
 		return false
-	var ok: bool = int(def.buy_price) == 0 and String(def.scroll_teaches_spell) == String(MagicRulesScr.SCROLL_TEACHES_ALL_SPELLS)
+	var ok: bool = (
+		int(def.buy_price) == 0
+		and String(def.scroll_teaches_spell) == String(MagicRulesScr.SCROLL_TEACHES_ALL_SPELLS)
+	)
 	cat.free()
 	return ok
 
@@ -336,40 +355,52 @@ func _test_protection_spell_catalog_and_mitigation() -> bool:
 	var armor_def: Dictionary = protections.get(&"armor_protection", {}) as Dictionary
 	if str(armor_def.get("kind", "")) != MagicRulesScr.PROTECTION_KIND_ARMOR:
 		return false
-	if not is_equal_approx(float(armor_def.get("armor_bonus", 0.0)), MagicRulesScr.ARMOR_PROTECTION_AMOUNT):
+	if not is_equal_approx(
+		float(armor_def.get("armor_bonus", 0.0)), MagicRulesScr.ARMOR_PROTECTION_AMOUNT
+	):
 		return false
 	for spell_id in MagicRulesScr.all_protection_spell_ids():
 		if MagicRulesScr.spell_display_name(spell_id).is_empty():
 			return false
 	var cd: Resource = CharacterDataScr.new()
 	cd.transient_armor_bonus = MagicRulesScr.ARMOR_PROTECTION_AMOUNT
-	cd.transient_damage_protection_percent[str(DamageTypes.Id.FIRE)] = MagicRulesScr.DAMAGE_TYPE_PROTECTION_PERCENT
+	cd.transient_damage_protection_percent[str(DamageTypes.Id.FIRE)] = (
+		MagicRulesScr.DAMAGE_TYPE_PROTECTION_PERCENT
+	)
 	var stats: Node = StatsSystemScr.new()
-	stats.configure(load("res://data/default_character_balance.tres") as Resource)
+	stats.configure(PRELOAD_CHARACTER_BALANCE as Resource)
 	stats.configure_inventory_penalties(InvBalScr.new())
 	stats.configure_combat_balance(CombatBalanceScr.new())
 	var effective: Dictionary = stats.get_effective_stats(&"prot", cd, null)
 	var armor: Dictionary = effective.get("armor_by_area", {}) as Dictionary
 	for area in CombatBalanceScr.BODY_AREAS:
 		var area_stats: Dictionary = armor.get(area, {}) as Dictionary
-		if not is_equal_approx(float(area_stats.get("armor_level", 0.0)), MagicRulesScr.ARMOR_PROTECTION_AMOUNT):
+		if not is_equal_approx(
+			float(area_stats.get("armor_level", 0.0)), MagicRulesScr.ARMOR_PROTECTION_AMOUNT
+		):
 			_free_node(stats)
 			return false
 	var combat: Node = CombatSystemScr.new()
 	combat.configure(CombatBalanceScr.new())
-	var base: Dictionary = combat.resolve_melee_hit(
-		{"attack_rating": 10.0},
-		{"defense_rating": 0.0},
-		DamageTypes.Id.FIRE,
-		1000,
-		1000,
+	var base: Dictionary = (
+		combat
+		. resolve_melee_hit(
+			{"attack_rating": 10.0},
+			{"defense_rating": 0.0},
+			DamageTypes.Id.FIRE,
+			1000,
+			1000,
+		)
 	)
-	var protected: Dictionary = combat.resolve_melee_hit(
-		{"attack_rating": 10.0},
-		effective,
-		DamageTypes.Id.FIRE,
-		1000,
-		1000,
+	var protected: Dictionary = (
+		combat
+		. resolve_melee_hit(
+			{"attack_rating": 10.0},
+			effective,
+			DamageTypes.Id.FIRE,
+			1000,
+			1000,
+		)
 	)
 	var ok: bool = float(protected.get("damage", 0.0)) < float(base.get("damage", 0.0))
 	_free_node(combat)
@@ -379,7 +410,9 @@ func _test_protection_spell_catalog_and_mitigation() -> bool:
 
 func _test_item_magic_spell_pool() -> bool:
 	var ids: Array[StringName] = MagicRulesScr.all_item_magic_spell_ids()
-	var expected_size: int = MagicRulesScr.all_buff_spell_ids().size() + MagicRulesScr.all_protection_spell_ids().size()
+	var expected_size: int = (
+		MagicRulesScr.all_buff_spell_ids().size() + MagicRulesScr.all_protection_spell_ids().size()
+	)
 	if ids.size() != expected_size:
 		return false
 	for sid in ids:
@@ -421,7 +454,10 @@ func _test_automation_priority_order() -> bool:
 	for _i in range(16):
 		auto.tick_all(0.01)
 	var prev: Array = auto.get_previous_tasks_for(rid)
-	var ok: bool = prev.size() == 2 and int((prev[0] as Dictionary).get("type")) == AutomationSystemScr.TaskType.HUNT
+	var ok: bool = (
+		prev.size() == 2
+		and int((prev[0] as Dictionary).get("type")) == AutomationSystemScr.TaskType.HUNT
+	)
 	_free_node(auto)
 	return ok
 
@@ -454,7 +490,10 @@ func _test_automation_interrupt_resume() -> bool:
 		_free_node(auto)
 		return false
 	var prev: Array = auto.get_previous_tasks_for(rid)
-	var ok: bool = not prev.is_empty() and str((prev[prev.size() - 1] as Dictionary).get("label")) == "long_wait"
+	var ok: bool = (
+		not prev.is_empty()
+		and str((prev[prev.size() - 1] as Dictionary).get("label")) == "long_wait"
+	)
 	_free_node(auto)
 	return ok
 
@@ -816,7 +855,11 @@ func _test_party_and_roster_limits() -> bool:
 		return false
 
 	trio.configure(reg)
-	if trio.add_member(&"roster_5") != OK or trio.add_member(&"roster_6") != OK or trio.add_member(&"roster_7") != OK:
+	if (
+		trio.add_member(&"roster_5") != OK
+		or trio.add_member(&"roster_6") != OK
+		or trio.add_member(&"roster_7") != OK
+	):
 		_free_node(trio)
 		_free_node(duo)
 		_free_node(party)
@@ -852,7 +895,7 @@ func _test_save_roundtrip() -> bool:
 	prog.configure(reg, balance)
 	prog.add_total_experience(&"save_a", balance.first_map_total_xp_budget)
 
-	var inv_bal = load("res://data/default_inventory_balance.tres") as Resource
+	var inv_bal := PRELOAD_INVENTORY_BALANCE
 	var cat = CatScr.new()
 	cat.ensure_items()
 	var inv = InventoryScr.new()
@@ -922,7 +965,7 @@ func _test_save_roundtrip() -> bool:
 
 
 func _test_burden_penalty_edges() -> bool:
-	var cfg = load("res://data/default_inventory_balance.tres") as Resource
+	var cfg := PRELOAD_INVENTORY_BALANCE
 	if cfg == null:
 		return false
 	var r0: float = cfg.get_burden_ratio(0.0, 80.0)
@@ -940,7 +983,7 @@ func _test_burden_penalty_edges() -> bool:
 
 func _test_inventory_equip_and_burden() -> bool:
 	var balance = _balance()
-	var inv_bal = load("res://data/default_inventory_balance.tres") as Resource
+	var inv_bal := PRELOAD_INVENTORY_BALANCE
 	var reg = CharacterRegistryScr.new()
 	reg.configure(balance)
 	var cat = CatScr.new()
@@ -1022,7 +1065,7 @@ func _count_bag_items(bag: Array) -> int:
 
 func _test_item_instances_and_equipment_details() -> bool:
 	var balance = _balance()
-	var inv_bal = load("res://data/default_inventory_balance.tres") as Resource
+	var inv_bal := PRELOAD_INVENTORY_BALANCE
 	var reg = CharacterRegistryScr.new()
 	reg.configure(balance)
 	var cat = CatScr.new()
@@ -1040,13 +1083,21 @@ func _test_item_instances_and_equipment_details() -> bool:
 	reg.register_character(cd)
 	var left: int = inv.try_add_item(&"inst_u", &"iron_sword", 1)
 	var cell: Variant = inv.get_cell(&"inst_u", 0)
-	var ok: bool = left == 0 and cell is Dictionary and String((cell as Dictionary).get("instance_id", "")) != ""
+	var ok: bool = (
+		left == 0
+		and cell is Dictionary
+		and String((cell as Dictionary).get("instance_id", "")) != ""
+	)
 	if ok:
 		ok = eq.equip_from_bag(&"inst_u", &"main_hand", 0) == OK
 	if ok:
 		var key: StringName = eq.get_equipped_key(&"inst_u", &"main_hand")
 		var details: Dictionary = eq.get_equipped_details(&"inst_u", &"main_hand")
-		ok = key != &"" and eq.get_equipped_item(&"inst_u", &"main_hand") == &"iron_sword" and int(details.get("damage_max", 0)) >= 3
+		ok = (
+			key != &""
+			and eq.get_equipped_item(&"inst_u", &"main_hand") == &"iron_sword"
+			and int(details.get("damage_max", 0)) >= 3
+		)
 	_free_node(eq)
 	_free_node(inv)
 	_free_node(inst)
@@ -1110,8 +1161,14 @@ func _test_accessory_generation_data() -> bool:
 			return false
 	var loot_table: Resource = LootTableConfigScr.new()
 	var pool: Array = loot_table.get_pool_for_tier(4)
-	var armor_weight: int = _loot_pool_weight_for_item(pool, &"leather_cap") + _loot_pool_weight_for_item(pool, &"wood_shield")
-	var accessory_weight: int = _loot_pool_weight_for_item(pool, &"bronze_bracelet") + _loot_pool_weight_for_item(pool, &"copper_ring")
+	var armor_weight: int = (
+		_loot_pool_weight_for_item(pool, &"leather_cap")
+		+ _loot_pool_weight_for_item(pool, &"wood_shield")
+	)
+	var accessory_weight: int = (
+		_loot_pool_weight_for_item(pool, &"bronze_bracelet")
+		+ _loot_pool_weight_for_item(pool, &"copper_ring")
+	)
 	var ok: bool = (
 		armor_weight > accessory_weight
 		and is_equal_approx(ItemInstanceScr.ACCESSORY_MAGIC_CHANCE, 0.16)
@@ -1124,18 +1181,32 @@ func _test_accessory_generation_data() -> bool:
 func _test_item_magic_spell_chance_ladders() -> bool:
 	var wearable_expected: Array[float] = [0.04, 0.10, 0.14, 0.18]
 	var accessory_expected: Array[float] = [0.16, 0.21, 0.25, 0.35]
-	if ItemInstanceScr.WEARABLE_MAGIC_SPELL_CHANCES.size() != ItemInstanceScr.MAX_MAGIC_SPELLS_PER_ITEM:
+	if (
+		ItemInstanceScr.WEARABLE_MAGIC_SPELL_CHANCES.size()
+		!= ItemInstanceScr.MAX_MAGIC_SPELLS_PER_ITEM
+	):
 		return false
-	if ItemInstanceScr.ACCESSORY_MAGIC_SPELL_CHANCES.size() != ItemInstanceScr.MAX_MAGIC_SPELLS_PER_ITEM:
+	if (
+		ItemInstanceScr.ACCESSORY_MAGIC_SPELL_CHANCES.size()
+		!= ItemInstanceScr.MAX_MAGIC_SPELLS_PER_ITEM
+	):
 		return false
 	for i in range(ItemInstanceScr.MAX_MAGIC_SPELLS_PER_ITEM):
-		if not is_equal_approx(ItemInstanceScr.WEARABLE_MAGIC_SPELL_CHANCES[i], wearable_expected[i]):
+		if not is_equal_approx(
+			ItemInstanceScr.WEARABLE_MAGIC_SPELL_CHANCES[i], wearable_expected[i]
+		):
 			return false
-		if not is_equal_approx(ItemInstanceScr.ACCESSORY_MAGIC_SPELL_CHANCES[i], accessory_expected[i]):
+		if not is_equal_approx(
+			ItemInstanceScr.ACCESSORY_MAGIC_SPELL_CHANCES[i], accessory_expected[i]
+		):
 			return false
 	return (
-		is_equal_approx(ItemInstanceScr.WEARABLE_MAGIC_CHANCE, ItemInstanceScr.WEARABLE_MAGIC_SPELL_CHANCES[0])
-		and is_equal_approx(ItemInstanceScr.ACCESSORY_MAGIC_CHANCE, ItemInstanceScr.ACCESSORY_MAGIC_SPELL_CHANCES[0])
+		is_equal_approx(
+			ItemInstanceScr.WEARABLE_MAGIC_CHANCE, ItemInstanceScr.WEARABLE_MAGIC_SPELL_CHANCES[0]
+		)
+		and is_equal_approx(
+			ItemInstanceScr.ACCESSORY_MAGIC_CHANCE, ItemInstanceScr.ACCESSORY_MAGIC_SPELL_CHANCES[0]
+		)
 	)
 
 
@@ -1175,7 +1246,7 @@ func _test_death_penalty_fades_with_full_xp() -> bool:
 
 func _test_loot_tiers_and_corpse_transfer() -> bool:
 	var balance = _balance()
-	var inv_bal = load("res://data/default_inventory_balance.tres") as Resource
+	var inv_bal := PRELOAD_INVENTORY_BALANCE
 	var reg = CharacterRegistryScr.new()
 	reg.configure(balance)
 	var cd = CharacterDataScr.new()
@@ -1208,7 +1279,11 @@ func _test_loot_tiers_and_corpse_transfer() -> bool:
 	var bag: Array = corpse.get_corpse_bag(&"corpse_test")
 	var too_far: bool = corpse.loot_bag_slot_to_character(&"loot_u", &"corpse_test", 0) == FAILED
 	trade.set_character_position(&"loot_u", Vector2(200.0, 0.0))
-	var ok: bool = too_far and not bag.is_empty() and corpse.loot_bag_slot_to_character(&"loot_u", &"corpse_test", 0) == OK
+	var ok: bool = (
+		too_far
+		and not bag.is_empty()
+		and corpse.loot_bag_slot_to_character(&"loot_u", &"corpse_test", 0) == OK
+	)
 	ok = ok and inv.get_cell(&"loot_u", 0) != null
 	_free_node(loot)
 	_free_node(corpse)
@@ -1221,7 +1296,7 @@ func _test_loot_tiers_and_corpse_transfer() -> bool:
 
 
 func _test_trade_range_gate() -> bool:
-	var inv_bal = load("res://data/default_inventory_balance.tres") as Resource
+	var inv_bal := PRELOAD_INVENTORY_BALANCE
 	var reg = CharacterRegistryScr.new()
 	reg.configure(_balance())
 	var cat = CatScr.new()
@@ -1249,7 +1324,7 @@ func _test_trade_range_gate() -> bool:
 
 
 func _test_ground_item_decay() -> bool:
-	var inv_bal = load("res://data/default_inventory_balance.tres") as Resource
+	var inv_bal := PRELOAD_INVENTORY_BALANCE
 	var reg = CharacterRegistryScr.new()
 	reg.configure(_balance())
 	var cat = CatScr.new()

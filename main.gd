@@ -1,5 +1,8 @@
 extends Node
 
+const CHARACTER_BALANCE := preload("res://data/default_character_balance.tres")
+const INVENTORY_BALANCE := preload("res://data/default_inventory_balance.tres")
+
 @onready var _systems: Node = $Systems
 @onready var _shell: Control = $UI
 
@@ -12,10 +15,14 @@ func _ready() -> void:
 
 
 func _bootstrap_systems() -> void:
-	var balance: CharacterBalanceConfig = load("res://data/default_character_balance.tres") as CharacterBalanceConfig
-	var inv_balance: InventoryBalanceConfig = load("res://data/default_inventory_balance.tres") as InventoryBalanceConfig
-	var registry: CharacterRegistrySystem = _systems.get_node("CharacterRegistrySystem") as CharacterRegistrySystem
-	var progression: CharacterProgressionSystem = _systems.get_node("CharacterProgressionSystem") as CharacterProgressionSystem
+	var balance: CharacterBalanceConfig = CHARACTER_BALANCE as CharacterBalanceConfig
+	var inv_balance: InventoryBalanceConfig = INVENTORY_BALANCE as InventoryBalanceConfig
+	var registry: CharacterRegistrySystem = (
+		_systems.get_node("CharacterRegistrySystem") as CharacterRegistrySystem
+	)
+	var progression: CharacterProgressionSystem = (
+		_systems.get_node("CharacterProgressionSystem") as CharacterProgressionSystem
+	)
 	var group: GroupSystem = _systems.get_node("GroupSystem") as GroupSystem
 	var skills: SkillSystem = _systems.get_node("SkillSystem") as SkillSystem
 	var stats: StatsSystem = _systems.get_node("StatsSystem") as StatsSystem
@@ -63,19 +70,24 @@ func _seed_demo_content() -> void:
 	if quest != null:
 		quest.seed_demo_journal()
 
-	merchant.set_merchant_stock(
-		&"default_merchant",
-		[
-			{"item_id": "scrap", "quantity": 999},
-			{"item_id": "iron_sword", "quantity": 999},
-			{"item_id": "wood_shield", "quantity": 999},
-			{"item_id": "leather_cap", "quantity": 999},
-			{"item_id": "scroll_all_spells", "quantity": 999},
-		],
+	(
+		merchant
+		. set_merchant_stock(
+			&"default_merchant",
+			[
+				{"item_id": "scrap", "quantity": 999},
+				{"item_id": "iron_sword", "quantity": 999},
+				{"item_id": "wood_shield", "quantity": 999},
+				{"item_id": "leather_cap", "quantity": 999},
+				{"item_id": "scroll_all_spells", "quantity": 999},
+			],
+		)
 	)
 
 
-func _wire_progression_to_stats(progression: CharacterProgressionSystem, stats: StatsSystem) -> void:
+func _wire_progression_to_stats(
+	progression: CharacterProgressionSystem, stats: StatsSystem
+) -> void:
 	if progression == null or stats == null:
 		return
 	progression.attribute_changed.connect(func(cid, _aid, _v): stats.invalidate(cid))
@@ -85,7 +97,9 @@ func _wire_progression_to_stats(progression: CharacterProgressionSystem, stats: 
 
 func _sync_all_character_vitals_from_stats() -> void:
 	## Demo / loaded characters never run the creation dialog — align pools to derived maxima once systems exist.
-	var registry: CharacterRegistrySystem = _systems.get_node("CharacterRegistrySystem") as CharacterRegistrySystem
+	var registry: CharacterRegistrySystem = (
+		_systems.get_node("CharacterRegistrySystem") as CharacterRegistrySystem
+	)
 	var stats: StatsSystem = _systems.get_node("StatsSystem") as StatsSystem
 	var equipment: EquipmentSystem = _systems.get_node("EquipmentSystem") as EquipmentSystem
 	if registry == null or stats == null or equipment == null:
@@ -102,17 +116,23 @@ func _sync_all_character_vitals_from_stats() -> void:
 
 
 func _wire_systems_to_ui() -> void:
-	var automation: AutomationSystem = _systems.get_node_or_null("AutomationSystem") as AutomationSystem
-	var registry: CharacterRegistrySystem = _systems.get_node("CharacterRegistrySystem") as CharacterRegistrySystem
+	var automation: AutomationSystem = (
+		_systems.get_node_or_null("AutomationSystem") as AutomationSystem
+	)
+	var registry: CharacterRegistrySystem = (
+		_systems.get_node("CharacterRegistrySystem") as CharacterRegistrySystem
+	)
 	var group: GroupSystem = _systems.get_node("GroupSystem") as GroupSystem
-	var progression: CharacterProgressionSystem = _systems.get_node("CharacterProgressionSystem") as CharacterProgressionSystem
+	var progression: CharacterProgressionSystem = (
+		_systems.get_node("CharacterProgressionSystem") as CharacterProgressionSystem
+	)
 	if automation != null:
 		automation.configure(registry, group)
 	if automation != null and _shell.has_method("bind_automation_system"):
 		_shell.bind_automation_system(automation, registry, group)
 
-	var balance: CharacterBalanceConfig = load("res://data/default_character_balance.tres") as CharacterBalanceConfig
-	var inv_balance: InventoryBalanceConfig = load("res://data/default_inventory_balance.tres") as InventoryBalanceConfig
+	var balance: CharacterBalanceConfig = CHARACTER_BALANCE as CharacterBalanceConfig
+	var inv_balance: InventoryBalanceConfig = INVENTORY_BALANCE as InventoryBalanceConfig
 	var inventory: InventorySystem = _systems.get_node("InventorySystem") as InventorySystem
 	var equipment: EquipmentSystem = _systems.get_node("EquipmentSystem") as EquipmentSystem
 	var catalog: ItemCatalog = _systems.get_node("ItemCatalog") as ItemCatalog
@@ -129,13 +149,25 @@ func _wire_systems_to_ui() -> void:
 		_shell.bind_quest_system(quest)
 
 	if not _shell.has_method(&"bind_inventory_ui"):
-		push_error("Main: UI root is missing bind_inventory_ui — is res://ui/main_shell.gd attached?")
+		push_error(
+			"Main: UI root is missing bind_inventory_ui — is res://ui/main_shell.gd attached?"
+		)
 	else:
 		var ids: PackedStringArray = registry.list_character_ids()
 		var focus: StringName = &""
 		if ids.size() > 0:
 			focus = ids[0]
-		_shell.bind_inventory_ui(registry, inventory, equipment, catalog, stats, balance, inv_balance, focus, item_instances)
+		_shell.bind_inventory_ui(
+			registry,
+			inventory,
+			equipment,
+			catalog,
+			stats,
+			balance,
+			inv_balance,
+			focus,
+			item_instances
+		)
 	if _shell.has_method("bind_combat_system"):
 		var combat: CombatSystem = _systems.get_node("CombatSystem") as CombatSystem
 		_shell.bind_combat_system(combat)
