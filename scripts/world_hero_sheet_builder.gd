@@ -29,11 +29,11 @@ const FACING_ORDER: Array[Vector2] = [
 	Vector2(-_INV_SQRT2, _INV_SQRT2),
 ]
 
-## Match `world_hero_walk.png`: 8 dir columns × 4 walk rows. Source column remap only swaps east/west
-## art versus engine `+/- x` versus file order (same as idle strip column swap).
-const _SOURCE_DIRECTION_INDEX := [0, 1, 6, 3, 4, 5, 2, 7]
+## Idle and walk atlases share the same column order left-to-right: S, SE, E, NE, N, NW, W, SW
+## (`FACING_ORDER` / `direction_index_for_velocity`).
+const _SOURCE_DIRECTION_INDEX := [0, 1, 2, 3, 4, 5, 6, 7]
 
-const _PIPELINE_VERSION := 8
+const _PIPELINE_VERSION := 9
 
 static var _cached_pipeline_version: int = -1
 static var _cached_frames: SpriteFrames = null
