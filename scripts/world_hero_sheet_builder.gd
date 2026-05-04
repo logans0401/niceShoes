@@ -33,7 +33,7 @@ const FACING_ORDER: Array[Vector2] = [
 ## (`FACING_ORDER` / `direction_index_for_velocity`).
 const _SOURCE_DIRECTION_INDEX := [0, 1, 2, 3, 4, 5, 6, 7]
 
-const _PIPELINE_VERSION := 9
+const _PIPELINE_VERSION := 10
 
 static var _cached_pipeline_version: int = -1
 static var _cached_frames: SpriteFrames = null
