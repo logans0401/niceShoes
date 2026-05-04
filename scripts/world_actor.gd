@@ -5,6 +5,9 @@ extends "res://scripts/player_controller.gd"
 signal meditation_resource_tick(character_id: StringName, kind: StringName, amount: float)
 
 const MOVE_THRESH_SPEED := 34.0
+## While actual speed exceeds this, facing follows [`CharacterBody2D.velocity`](CharacterBody2D.velocity) instead of raw WASD.
+## Keeps diagonal stand poses when releasing A+S out of order (brief cardinal-only input skews sprites otherwise).
+const FACE_FROM_VELOCITY_SPEED_SQ := 400.0
 const WALK_CYCLE_HZ := 7.0
 const BODY_VISUAL_HEIGHT_PX := 46.0
 
@@ -256,8 +259,13 @@ func _use_polygon_fallback_texture_missing() -> void:
 func _facing_velocity() -> Vector2:
 	var v := velocity
 	if is_controlled:
+		const INP_DEAD := 0.25
 		var inp: Vector2 = _movement_input()
-		if inp.length_squared() > 0.25:
+		if inp.length_squared() <= INP_DEAD:
+			pass
+		elif velocity.length_squared() > FACE_FROM_VELOCITY_SPEED_SQ:
+			v = velocity
+		else:
 			return inp
 	if _hunt_nav_active and _nav_agent != null and not _nav_agent.is_navigation_finished():
 		var next_pos: Vector2 = _nav_agent.get_next_path_position()

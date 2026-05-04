@@ -25,6 +25,7 @@ const AutomationSystemScr := preload("res://systems/automation_system.gd")
 const GameConstantsScr := preload("res://scripts/game_constants.gd")
 const CharacterSchemaScr := preload("res://scripts/character_schema.gd")
 const MagicRulesScr := preload("res://scripts/magic_rules.gd")
+const WorldHeroSheetScr := preload("res://scripts/world_hero_sheet_builder.gd")
 const PRELOAD_CHARACTER_BALANCE := preload("res://data/default_character_balance.tres")
 const PRELOAD_INVENTORY_BALANCE := preload("res://data/default_inventory_balance.tres")
 
@@ -93,6 +94,9 @@ func _run_all() -> int:
 		return 1
 	if not _test_project_assets():
 		push_error("test_harness: project assets missing")
+		return 1
+	if not _test_world_hero_facing_octants():
+		push_error("test_harness: world hero facing octants failed")
 		return 1
 	if not _test_character_data_resource_script():
 		push_error("test_harness: character data script resource invalid")
@@ -657,6 +661,31 @@ func _test_project_assets() -> bool:
 		return false
 	if not ResourceLoader.exists("res://data/default_inventory_balance.tres"):
 		return false
+	if not ResourceLoader.exists("res://assets/sprites/world/world_hero_stand.png"):
+		return false
+	return true
+
+
+func _test_world_hero_facing_octants() -> bool:
+	var inv_sqrt2 := 0.7071067811865476
+	const DIRS := ["s", "se", "e", "ne", "n", "nw", "w", "sw"]
+	var samples := [
+		[Vector2.DOWN, "s"],
+		[Vector2(inv_sqrt2, inv_sqrt2), "se"],
+		[Vector2.RIGHT, "e"],
+		[Vector2(inv_sqrt2, -inv_sqrt2), "ne"],
+		[Vector2.UP, "n"],
+		[Vector2(-inv_sqrt2, -inv_sqrt2), "nw"],
+		[Vector2.LEFT, "w"],
+		[Vector2(-inv_sqrt2, inv_sqrt2), "sw"],
+	]
+	for s in samples:
+		var idx: int = WorldHeroSheetScr.direction_index_for_velocity(s[0] as Vector2)
+		var want: String = s[1] as String
+		if idx < 0 or idx >= DIRS.size():
+			return false
+		if DIRS[idx] != want:
+			return false
 	return true
 
 
