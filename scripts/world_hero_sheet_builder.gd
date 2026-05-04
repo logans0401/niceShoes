@@ -33,11 +33,13 @@ const FACING_ORDER: Array[Vector2] = [
 ## (`FACING_ORDER` / `direction_index_for_velocity`).
 const _SOURCE_DIRECTION_INDEX := [0, 1, 2, 3, 4, 5, 6, 7]
 
-const _PIPELINE_VERSION := 10
+const _PIPELINE_VERSION := 11
 
 static var _cached_pipeline_version: int = -1
 static var _cached_frames: SpriteFrames = null
 static var _native_cell: Vector2i = Vector2i(TARGET_CELL_WIDTH, TARGET_CELL_HEIGHT)
+static var _cache_stand_mtime: int = -3
+static var _cache_walk_mtime: int = -3
 
 
 static func get_native_frame_size() -> Vector2i:
@@ -47,15 +49,22 @@ static func get_native_frame_size() -> Vector2i:
 
 
 static func get_sprite_frames() -> SpriteFrames:
-	if _cached_frames != null and _cached_pipeline_version == _PIPELINE_VERSION:
+	var st_stamp: int = _resource_fs_mtime_unix(PATH_STAND)
+	var wk_stamp: int = _resource_fs_mtime_unix(PATH_WALK)
+	if (
+		_cached_frames != null
+		and _cached_pipeline_version == _PIPELINE_VERSION
+		and st_stamp == _cache_stand_mtime
+		and wk_stamp == _cache_walk_mtime
+	):
 		return _cached_frames
 	if not ResourceLoader.exists(PATH_STAND) or not ResourceLoader.exists(PATH_WALK):
 		return null
-	var raw_st := load(PATH_STAND) as Texture2D
-	var raw_wk := load(PATH_WALK) as Texture2D
-	if raw_st == null or raw_wk == null:
+	var stand_px: Image = _load_stand_image_pixels()
+	var raw_wk := ResourceLoader.load(PATH_WALK, "", ResourceLoader.CACHE_MODE_REPLACE) as Texture2D
+	if stand_px == null or raw_wk == null:
 		return null
-	var im_st := _normalize_stand_atlas(raw_st)
+	var im_st := _normalize_stand_pixels(stand_px)
 	var im_wk := _normalize_walk_atlas(raw_wk)
 	if im_st == null or im_wk == null:
 		return null
@@ -63,32 +72,40 @@ static func get_sprite_frames() -> SpriteFrames:
 	var tex_walk := ImageTexture.create_from_image(im_wk)
 	_cached_frames = _build_sprite_frames(tex_stand, tex_walk)
 	_cached_pipeline_version = _PIPELINE_VERSION
+	_cache_stand_mtime = st_stamp
+	_cache_walk_mtime = wk_stamp
 	return _cached_frames
 
 
-static func direction_index_for_velocity(v: Vector2) -> int:
-	## Explicit octants match Godot coords (+x right, +y down) and idle/walk atlas column ordering (S clockwise).
-	if v.length_squared() < 1e-8:
-		return 0
-	var n := v.normalized()
-	var x := float(n.x)
-	var y := float(n.y)
-	const D := 0.38
-	var ax := absf(x)
-	var ay := absf(y)
-	if ax > D and ay > D:
-		if x > 0.0:
-			return 1 if y > 0.0 else 3  ## SE vs NE (down/right vs up/right)
-		return 7 if y > 0.0 else 5  ## SW vs NW (down/left vs up/left)
-	if ax >= ay:
-		return 2 if x > 0.0 else 6
-	return 0 if y > 0.0 else 4
+static func _resource_fs_mtime_unix(res_path: String) -> int:
+	var fs_path: String = ProjectSettings.globalize_path(res_path)
+	if fs_path.is_empty() or not FileAccess.file_exists(fs_path):
+		return -1
+	return FileAccess.get_modified_time(fs_path)
 
 
-static func _normalize_stand_atlas(tex: Texture2D) -> Image:
-	var img: Image = tex.get_image()
-	if img == null:
+## Read idle strip from authored PNG on disk whenever possible (`Image.load_from_file`). Imported textures and
+## `ResourceLoader.load` caches can briefly serve stale pixels after local edits unless we bypass/replace them.
+static func _load_stand_image_pixels() -> Image:
+	var fs_path: String = ProjectSettings.globalize_path(PATH_STAND)
+	var decoded: Image = null
+	if fs_path.is_empty():
+		pass
+	elif FileAccess.file_exists(fs_path):
+		decoded = Image.load_from_file(fs_path)
+	if decoded == null:
+		var fb := ResourceLoader.load(PATH_STAND, "", ResourceLoader.CACHE_MODE_REPLACE) as Texture2D
+		if fb != null:
+			decoded = fb.get_image()
+	if decoded != null:
+		decoded.convert(Image.FORMAT_RGBA8)
+	return decoded
+
+
+static func _normalize_stand_pixels(img_src: Image) -> Image:
+	if img_src == null:
 		return null
+	var img: Image = img_src.duplicate()
 	img.convert(Image.FORMAT_RGBA8)
 	_scrub_import_matte(img)
 	var w: int = img.get_width()
@@ -118,6 +135,25 @@ static func _normalize_stand_atlas(tex: Texture2D) -> Image:
 			Vector2i(logical_i * TARGET_CELL_WIDTH, 0)
 		)
 	return out
+
+
+static func direction_index_for_velocity(v: Vector2) -> int:
+	## Explicit octants match Godot coords (+x right, +y down) and idle/walk atlas column ordering (S clockwise).
+	if v.length_squared() < 1e-8:
+		return 0
+	var n := v.normalized()
+	var x := float(n.x)
+	var y := float(n.y)
+	const D := 0.38
+	var ax := absf(x)
+	var ay := absf(y)
+	if ax > D and ay > D:
+		if x > 0.0:
+			return 1 if y > 0.0 else 3  ## SE vs NE (down/right vs up/right)
+		return 7 if y > 0.0 else 5  ## SW vs NW (down/left vs up/left)
+	if ax >= ay:
+		return 2 if x > 0.0 else 6
+	return 0 if y > 0.0 else 4
 
 
 static func _normalize_walk_atlas(tex: Texture2D) -> Image:
