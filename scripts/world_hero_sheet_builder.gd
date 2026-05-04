@@ -12,6 +12,10 @@ const WALK_FRAME_COUNT := 4
 const TARGET_CELL_WIDTH := 96
 const TARGET_CELL_HEIGHT := 96
 
+## Extra vertical space between packed walk directions in the runtime atlas (same column in `world_hero_walk.png`
+## becomes adjacent rows). Prevents GPU sampling from pulling the previous row's boots into the next row's head.
+const _WALK_ATLAS_DIRECTION_ROW_PAD := 4
+
 const _ALPHA_CUTOFF := 0.085
 
 ## 1/sqrt(2); constant expressions only (GDScript parser).
@@ -33,7 +37,7 @@ const FACING_ORDER: Array[Vector2] = [
 ## (`FACING_ORDER` / `direction_index_for_velocity`).
 const _SOURCE_DIRECTION_INDEX := [0, 1, 2, 3, 4, 5, 6, 7]
 
-const _PIPELINE_VERSION := 11
+const _PIPELINE_VERSION := 12
 
 static var _cached_pipeline_version: int = -1
 static var _cached_frames: SpriteFrames = null
@@ -46,6 +50,10 @@ static func get_native_frame_size() -> Vector2i:
 	if _cached_frames == null:
 		get_sprite_frames()
 	return _native_cell
+
+
+static func _walk_direction_stride_y() -> int:
+	return TARGET_CELL_HEIGHT + _WALK_ATLAS_DIRECTION_ROW_PAD
 
 
 static func get_sprite_frames() -> SpriteFrames:
@@ -170,11 +178,12 @@ static func _normalize_walk_atlas(tex: Texture2D) -> Image:
 		return null
 	var out := Image.create(
 		TARGET_CELL_WIDTH * WALK_FRAME_COUNT,
-		TARGET_CELL_HEIGHT * DIR_COUNT,
+		_walk_direction_stride_y() * DIR_COUNT,
 		false,
 		Image.FORMAT_RGBA8
 	)
 	out.fill(Color(0, 0, 0, 0))
+	var stride_y: int = _walk_direction_stride_y()
 	for logical_dir in range(DIR_COUNT):
 		var src_col: int = int(_SOURCE_DIRECTION_INDEX[logical_dir])
 		for f in range(WALK_FRAME_COUNT):
@@ -191,7 +200,7 @@ static func _normalize_walk_atlas(tex: Texture2D) -> Image:
 			out.blit_rect(
 				cell_img,
 				Rect2i(0, 0, TARGET_CELL_WIDTH, TARGET_CELL_HEIGHT),
-				Vector2i(f * TARGET_CELL_WIDTH, logical_dir * TARGET_CELL_HEIGHT)
+				Vector2i(f * TARGET_CELL_WIDTH, logical_dir * stride_y)
 			)
 	return out
 
@@ -304,12 +313,13 @@ static func _build_sprite_frames(stand_tex: Texture2D, walk_tex: Texture2D) -> S
 		sf.add_frame(anim_stand, at)
 	sf.add_animation(anim_walk)
 	sf.set_animation_loop(anim_walk, true)
+	var walk_y: int = _walk_direction_stride_y()
 	for d in range(DIR_COUNT):
 		for f in range(WALK_FRAME_COUNT):
 			var aw := AtlasTexture.new()
 			aw.atlas = walk_tex
 			aw.region = Rect2(
-				f * TARGET_CELL_WIDTH, d * TARGET_CELL_HEIGHT, TARGET_CELL_WIDTH, TARGET_CELL_HEIGHT
+				f * TARGET_CELL_WIDTH, float(d * walk_y), TARGET_CELL_WIDTH, TARGET_CELL_HEIGHT
 			)
 			sf.add_frame(anim_walk, aw)
 	return sf
