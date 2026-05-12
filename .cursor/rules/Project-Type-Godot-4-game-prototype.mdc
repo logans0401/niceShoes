@@ -1,0 +1,19 @@
+---
+alwaysApply: true
+---
+
+Language: GDScript only
+Architecture: modular, scene-based, scalable systems
+Priority: game feel, automation systems, data-driven architecture
+
+Hard Rules:
+- Use Godot 4 APIs only
+- Use CharacterBody2D for controllable actors
+- Use separate scenes for each map under res://maps/
+- Use separate scripts for UI, character data, automation, combat, quests, loot, and transitions
+- Prefer resources/data files for tunable formulas and balance values
+- Expose balancing constants via exported variables or config resources
+- Use placeholder generated visuals only
+- Build code in testable vertical slices
+- Run headless automated tests where possible
+- Fix compile/runtime errors autonomously before finishing
