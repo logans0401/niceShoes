@@ -99,14 +99,8 @@ func _compute(data: Resource, equipment: Node, character_id: StringName) -> Dict
 	var mind_e: float = maxf(0.0, mind - pivot_f)
 	var wisdom_e: float = maxf(0.0, wisdom - pivot_f)
 
-	## Skill modifiers use stretched attributes so Z=100 creation does not explode combat math.
+	## Skill modifiers: fixed attribute formulas plus XP ranks (see CharacterBalanceConfig).
 	var attrs_for_skills: Dictionary = penalized_attrs
-	if cfg is CharacterBalanceConfig:
-		attrs_for_skills = (cfg as CharacterBalanceConfig).attributes_for_skill_formulas(
-			penalized_attrs
-		)
-
-	## Skill modifiers = (weighted attributes / skill_base_divisor) + (rank × skill_rank_modifier_scale); see CharacterBalanceConfig.
 	## Ranks include bought XP ranks plus transient_skill_bonus (buffs), matching combat/display intent.
 	var mods: Dictionary
 	if cfg is CharacterBalanceConfig:
@@ -143,24 +137,10 @@ func _compute(data: Resource, equipment: Node, character_id: StringName) -> Dict
 	magic_def_mod *= float(pen.get("defense_skill_multiplier", 1.0))
 	missile_def_mod *= float(pen.get("defense_skill_multiplier", 1.0))
 
-	var max_health: float = (
-		cfg.health_base
-		+ heart_e * cfg.health_per_heartiness
-		+ strn_e * cfg.health_per_strength
-		+ float(lvl) * cfg.health_per_level
-	)
-	var max_stamina: float = (
-		cfg.stamina_base
-		+ heart_e * cfg.stamina_per_heartiness
-		+ reflex_e * cfg.stamina_per_reflexes
-		+ float(lvl) * cfg.stamina_per_level
-	)
-	var max_mana: float = (
-		cfg.mana_base
-		+ mind_e * cfg.mana_per_mind
-		+ wisdom_e * cfg.mana_per_wisdom
-		+ float(lvl) * cfg.mana_per_level
-	)
+	## Vitals: Health = Heartiness/2, Stamina = Heartiness, Mana = Mind (attributes after penalties), plus level.
+	var max_health: float = heart / 2.0 + float(lvl) * cfg.health_per_level
+	var max_stamina: float = heart + float(lvl) * cfg.stamina_per_level
+	var max_mana: float = mind + float(lvl) * cfg.mana_per_level
 
 	if cfg is CharacterBalanceConfig:
 		var ccfg: CharacterBalanceConfig = cfg as CharacterBalanceConfig

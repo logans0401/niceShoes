@@ -1068,14 +1068,13 @@ func _ensure_creation_dialog() -> void:
 	hint.text = (
 		(
 			"Each slider is bonus points above the %d floor (%d ticks up to %d). Spend all %d creation points "
-			+ "(bar or − / +). Skills: stretched attributes ÷ %.2f plus XP ranks."
+			+ "(bar or − / +). Skills use fixed attribute formulas plus XP ranks (see balance config)."
 		)
 		% [
 			c0.creation_attribute_floor,
 			c0.creation_attribute_cap - c0.creation_attribute_floor,
 			c0.creation_attribute_cap,
 			c0.creation_attribute_pool,
-			c0.skill_base_divisor,
 		]
 	)
 	vb.add_child(hint)

@@ -102,7 +102,9 @@ static func _load_stand_image_pixels() -> Image:
 	elif FileAccess.file_exists(fs_path):
 		decoded = Image.load_from_file(fs_path)
 	if decoded == null:
-		var fb := ResourceLoader.load(PATH_STAND, "", ResourceLoader.CACHE_MODE_REPLACE) as Texture2D
+		var fb := (
+			ResourceLoader.load(PATH_STAND, "", ResourceLoader.CACHE_MODE_REPLACE) as Texture2D
+		)
 		if fb != null:
 			decoded = fb.get_image()
 	if decoded != null:

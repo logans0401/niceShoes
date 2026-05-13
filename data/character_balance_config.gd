@@ -22,22 +22,9 @@ const _Sch := preload("res://scripts/character_schema.gd")
 @export var burden_per_heartiness: float = 0.38
 
 @export_group("Pools (max)")
-## Baseline at `attribute_formula_pivot` with zero excess Heartiness/Strength (see StatsSystem).
-@export var health_base: float = 90.0
-## Added per point of Heartiness above `attribute_formula_pivot`.
-@export var health_per_heartiness: float = 2.45
-## Added per point of Strength above pivot.
-@export var health_per_strength: float = 0.42
+## Added on top of attribute-based pools (`StatsSystem`): Health = Heartiness/2, Stamina = Heartiness, Mana = Mind.
 @export var health_per_level: float = 2.0
-
-@export var stamina_base: float = 78.0
-@export var stamina_per_heartiness: float = 1.12
-@export var stamina_per_reflexes: float = 1.12
 @export var stamina_per_level: float = 1.6
-
-@export var mana_base: float = 44.0
-@export var mana_per_mind: float = 1.08
-@export var mana_per_wisdom: float = 1.32
 @export var mana_per_level: float = 1.4
 
 @export_group("Character creation (static for every new character)")
@@ -51,15 +38,11 @@ const _Sch := preload("res://scripts/character_schema.gd")
 @export var creation_attribute_cap: int = 100
 
 @export_group("Derived stats pivot")
-## Attributes at this value contribute only the vitals base (no per-stat slope). Matches creation floor N.
+## Attributes at this floor are the baseline for burden excess and some combat helpers; matches creation floor N.
 @export var attribute_formula_pivot: int = 10
 
 @export_group("Skill formula (base from attributes + training ranks)")
-## Conceptual match to examples like (weighted attrs) / 3 — applied to the attribute-derived term only.
-@export var skill_base_divisor: float = 3.0
-## Each stored attribute point above the pivot is multiplied by this before skill weights (keeps modifiers sane when Z is large).
-@export var skill_attribute_stretch: float = 0.185
-## Each skill rank bought with XP adds this much to the combat skill modifier (after base scaling).
+## Each skill rank bought with XP adds this much on top of the fixed attribute formula (see `get_skill_base_modifier`).
 @export var skill_rank_modifier_scale: float = 1.0
 
 @export_group("Skill training")
@@ -113,15 +96,6 @@ func get_xp_to_next_level(total_xp: int, level: int) -> int:
 	return maxi(0, next_floor - total_xp)
 
 
-func attributes_for_skill_formulas(attributes: Dictionary) -> Dictionary:
-	var pivot: float = float(attribute_formula_pivot)
-	var out: Dictionary = {}
-	for attr in _Sch.ALL_ATTRIBUTES:
-		var v: float = float(attributes.get(attr, pivot))
-		out[attr] = pivot + maxf(0.0, v - pivot) * skill_attribute_stretch
-	return out
-
-
 func get_burden_capacity(attributes: Dictionary) -> float:
 	var pivot: float = float(attribute_formula_pivot)
 	var strn: float = maxf(0.0, float(attributes.get(_Sch.ATTRIBUTE_STRENGTH, pivot)) - pivot)
@@ -161,88 +135,11 @@ func get_unspent_cost_for_xp_purchase_count(purchases_already: int) -> int:
 
 
 func get_skill_attribute_weights() -> Dictionary:
-	# Design: each skill pulls primarily from thematically aligned attributes.
-	return {
-		_Sch.SKILL_COOKING:
-		{
-			_Sch.ATTRIBUTE_HEARTINESS: 0.35,
-			_Sch.ATTRIBUTE_MIND: 0.35,
-			_Sch.ATTRIBUTE_ABILITY: 0.30,
-		},
-		_Sch.SKILL_ALCHEMY:
-		{
-			_Sch.ATTRIBUTE_MIND: 0.45,
-			_Sch.ATTRIBUTE_WISDOM: 0.35,
-			_Sch.ATTRIBUTE_ABILITY: 0.20,
-		},
-		_Sch.SKILL_FLETCHING:
-		{
-			_Sch.ATTRIBUTE_ABILITY: 0.40,
-			_Sch.ATTRIBUTE_REFLEXES: 0.35,
-			_Sch.ATTRIBUTE_STRENGTH: 0.25,
-		},
-		_Sch.SKILL_MELEE_COMBAT:
-		{
-			_Sch.ATTRIBUTE_STRENGTH: 0.45,
-			_Sch.ATTRIBUTE_REFLEXES: 0.30,
-			_Sch.ATTRIBUTE_ABILITY: 0.25,
-		},
-		_Sch.SKILL_MISSILE_COMBAT:
-		{
-			_Sch.ATTRIBUTE_REFLEXES: 0.45,
-			_Sch.ATTRIBUTE_ABILITY: 0.35,
-			_Sch.ATTRIBUTE_STRENGTH: 0.20,
-		},
-		_Sch.SKILL_MAGIC_COMBAT:
-		{
-			_Sch.ATTRIBUTE_MIND: 0.40,
-			_Sch.ATTRIBUTE_WISDOM: 0.35,
-			_Sch.ATTRIBUTE_ABILITY: 0.25,
-		},
-		_Sch.SKILL_MAGIC_SUPPORT:
-		{
-			_Sch.ATTRIBUTE_WISDOM: 0.45,
-			_Sch.ATTRIBUTE_MIND: 0.35,
-			_Sch.ATTRIBUTE_HEARTINESS: 0.20,
-		},
-		_Sch.SKILL_MELEE_DEFENSE:
-		{
-			_Sch.ATTRIBUTE_HEARTINESS: 0.40,
-			_Sch.ATTRIBUTE_STRENGTH: 0.30,
-			_Sch.ATTRIBUTE_REFLEXES: 0.30,
-		},
-		_Sch.SKILL_MAGIC_DEFENSE:
-		{
-			_Sch.ATTRIBUTE_WISDOM: 0.40,
-			_Sch.ATTRIBUTE_MIND: 0.35,
-			_Sch.ATTRIBUTE_HEARTINESS: 0.25,
-		},
-		_Sch.SKILL_MISSILE_DEFENSE:
-		{
-			_Sch.ATTRIBUTE_REFLEXES: 0.40,
-			_Sch.ATTRIBUTE_HEARTINESS: 0.30,
-			_Sch.ATTRIBUTE_ABILITY: 0.30,
-		},
-		_Sch.SKILL_ARCANE_CONNECTION:
-		{
-			_Sch.ATTRIBUTE_MIND: 0.40,
-			_Sch.ATTRIBUTE_WISDOM: 0.40,
-			_Sch.ATTRIBUTE_ABILITY: 0.20,
-		},
-	}
+	return {}
 
 
 func get_skill_modifier_from_attributes(skill_id: StringName, attributes: Dictionary) -> float:
-	var table: Variant = get_skill_attribute_weights().get(skill_id, {})
-	if typeof(table) != TYPE_DICTIONARY:
-		return 0.0
-	var weights: Dictionary = table as Dictionary
-	var total: float = 0.0
-	for attr_key in weights.keys():
-		var w: float = float(weights.get(attr_key, 0.0))
-		var value: float = float(attributes.get(attr_key, 0.0))
-		total += value * w
-	return total
+	return get_skill_base_modifier(skill_id, attributes)
 
 
 func get_all_skill_modifiers(attributes: Dictionary) -> Dictionary:
@@ -252,16 +149,39 @@ func get_all_skill_modifiers(attributes: Dictionary) -> Dictionary:
 	return out
 
 
-## Attribute-only term (before / skill_base_divisor). Same as weighted sum Σ (weight_a × attribute_a).
+## Attribute-only term from fixed formulas (same as combat skill base modifier).
 func get_skill_base_from_attributes(skill_id: StringName, attributes: Dictionary) -> float:
-	return get_skill_modifier_from_attributes(skill_id, attributes)
+	return get_skill_base_modifier(skill_id, attributes)
 
 
-## Combat/display base modifier: (weighted attribute sum) / skill_base_divisor — same shape as "(Str + Ability) / 3" but using full weight tables.
+## Skill base from attributes: explicit simple formulas (death-penalized attributes from `StatsSystem`).
 func get_skill_base_modifier(skill_id: StringName, attributes: Dictionary) -> float:
-	return (
-		get_skill_modifier_from_attributes(skill_id, attributes) / maxf(0.001, skill_base_divisor)
-	)
+	var s: float = float(attributes.get(_Sch.ATTRIBUTE_STRENGTH, 0.0))
+	var a: float = float(attributes.get(_Sch.ATTRIBUTE_ABILITY, 0.0))
+	var r: float = float(attributes.get(_Sch.ATTRIBUTE_REFLEXES, 0.0))
+	var m: float = float(attributes.get(_Sch.ATTRIBUTE_MIND, 0.0))
+	var w: float = float(attributes.get(_Sch.ATTRIBUTE_WISDOM, 0.0))
+	match skill_id:
+		_Sch.SKILL_MELEE_COMBAT:
+			return (s + a) / 3.0
+		_Sch.SKILL_MELEE_DEFENSE:
+			return (a + r) / 3.0
+		_Sch.SKILL_MISSILE_COMBAT:
+			return a / 2.0
+		_Sch.SKILL_MISSILE_DEFENSE:
+			return (a + r) / 5.0
+		_Sch.SKILL_MAGIC_COMBAT, _Sch.SKILL_MAGIC_SUPPORT, _Sch.SKILL_MAGIC_DEFENSE:
+			return (m + w) / 4.0
+		_Sch.SKILL_ALCHEMY:
+			return (a + w) / 3.0
+		_Sch.SKILL_ARCANE_CONNECTION:
+			return w / 3.0
+		_Sch.SKILL_COOKING:
+			return (a + w) / 3.0
+		_Sch.SKILL_FLETCHING:
+			return (a + w) / 3.0
+		_:
+			return 0.0
 
 
 func get_skill_training_modifier(_skill_id: StringName, skill_rank: int) -> float:
