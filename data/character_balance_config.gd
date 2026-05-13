@@ -21,12 +21,6 @@ const _Sch := preload("res://scripts/character_schema.gd")
 @export var burden_per_strength: float = 0.52
 @export var burden_per_heartiness: float = 0.38
 
-@export_group("Pools (max)")
-## Added on top of attribute-based pools (`StatsSystem`): Health = Heartiness/2, Stamina = Heartiness, Mana = Mind.
-@export var health_per_level: float = 2.0
-@export var stamina_per_level: float = 1.6
-@export var mana_per_level: float = 1.4
-
 @export_group("Character creation (static for every new character)")
 ## Design: N = floor, Z = creation cap = 10×N, M = free points = 2.7×Z (e.g. N=10 → Z=100, M=270).
 ## Exactly three stats can reach Z while the other three stay at N.

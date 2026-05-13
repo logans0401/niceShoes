@@ -137,10 +137,10 @@ func _compute(data: Resource, equipment: Node, character_id: StringName) -> Dict
 	magic_def_mod *= float(pen.get("defense_skill_multiplier", 1.0))
 	missile_def_mod *= float(pen.get("defense_skill_multiplier", 1.0))
 
-	## Vitals: Health = Heartiness/2, Stamina = Heartiness, Mana = Mind (attributes after penalties), plus level.
-	var max_health: float = heart / 2.0 + float(lvl) * cfg.health_per_level
-	var max_stamina: float = heart + float(lvl) * cfg.stamina_per_level
-	var max_mana: float = mind + float(lvl) * cfg.mana_per_level
+	## Vitals: Health = Heartiness/2, Stamina = Heartiness, Mana = Mind (attributes after penalties); optional vital XP bonuses below.
+	var max_health: float = heart / 2.0
+	var max_stamina: float = heart
+	var max_mana: float = mind
 
 	if cfg is CharacterBalanceConfig:
 		var ccfg: CharacterBalanceConfig = cfg as CharacterBalanceConfig
