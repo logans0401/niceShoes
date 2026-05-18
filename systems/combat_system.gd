@@ -1,6 +1,8 @@
 class_name CombatSystem
 extends Node
 
+const _Sch := preload("res://scripts/character_schema.gd")
+
 signal combat_event_logged(message: String)
 signal character_died(character_id: StringName)
 
@@ -27,16 +29,22 @@ func resolve_melee_hit(
 ) -> Dictionary:
 	if _combat_balance == null:
 		configure()
-	var atk: float = float(attacker_stats.get("attack_rating", 5.0))
-	var def: float = float(defender_stats.get("defense_rating", 3.0))
+	var melee_atk: float = _melee_skill_from_stats(
+		attacker_stats, &"attack_rating", _Sch.SKILL_MELEE_COMBAT
+	)
+	var melee_def: float = _melee_skill_from_stats(
+		defender_stats, &"defense_rating", _Sch.SKILL_MELEE_DEFENSE
+	)
+	var skill_dmg: float = melee_atk * float(_combat_balance.melee_skill_damage_scale)
+	var skill_mit: float = melee_def * float(_combat_balance.melee_defense_damage_scale)
 	var raw: float
 	var lo: int = mini(weapon_damage_min, weapon_damage_max)
 	var hi: int = maxi(weapon_damage_min, weapon_damage_max)
 	if hi <= 0:
-		raw = maxf(1.0, atk - def * 0.35)
+		raw = maxf(1.0, skill_dmg - skill_mit)
 	else:
 		var rolled: float = float(randi_range(lo, hi))
-		raw = maxf(1.0, rolled + atk - def * 0.35)
+		raw = maxf(1.0, rolled + skill_dmg - skill_mit)
 	var target_area: StringName = _combat_balance.pick_body_area()
 	var mitigated: Dictionary = _apply_area_mitigation(
 		raw, defender_stats, target_area, damage_type
@@ -52,6 +60,21 @@ func resolve_melee_hit(
 		"damage_type": damage_type,
 		"target_area": target_area,
 	}
+
+
+func _melee_skill_from_stats(
+	stats: Dictionary, rating_key: StringName, skill_id: StringName
+) -> float:
+	var sm: Dictionary = stats.get("skill_modifiers", {}) as Dictionary
+	var sid: String = String(skill_id)
+	if sm.has(skill_id) or sm.has(sid):
+		return float(sm.get(skill_id, sm.get(sid, 0.0)))
+	var legacy_scale: float = (
+		float(_combat_balance.legacy_defense_rating_skill_scale)
+		if skill_id == _Sch.SKILL_MELEE_DEFENSE
+		else float(_combat_balance.legacy_attack_rating_skill_scale)
+	)
+	return float(stats.get(rating_key, 0.0)) / maxf(0.01, legacy_scale)
 
 
 func apply_damage(_target_id: StringName, amount: float) -> void:

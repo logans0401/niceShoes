@@ -208,21 +208,32 @@ func _test_stats() -> bool:
 
 func _test_combat_melee_resolve() -> bool:
 	var combat: Node = CombatSystemScr.new()
-	var hi: Dictionary = combat.resolve_melee_hit({"attack_rating": 10.0}, {"defense_rating": 0.0})
-	if not bool(hi.get("hit", false)) or not is_equal_approx(float(hi.get("damage", 0.0)), 10.0):
+	var attacker: Dictionary = {"skill_modifiers": {"melee_combat": 37.0}}
+	var soft_def: Dictionary = {"skill_modifiers": {"melee_defense": 10.0}}
+	var tough_def: Dictionary = {"skill_modifiers": {"melee_defense": 35.0}}
+	var hit: Dictionary = combat.resolve_melee_hit(
+		attacker, soft_def, DamageTypes.Id.SLASHING, 1, 3
+	)
+	if not bool(hit.get("hit", false)):
+		_free_node(combat)
+		return false
+	var dmg: float = float(hit.get("damage", 0.0))
+	if dmg < 2.0 or dmg > 7.0:
+		_free_node(combat)
+		return false
+	var reduced: Dictionary = combat.resolve_melee_hit(
+		attacker, tough_def, DamageTypes.Id.SLASHING, 1, 3
+	)
+	if not bool(reduced.get("hit", false)):
+		_free_node(combat)
+		return false
+	if float(reduced.get("damage", 0.0)) >= dmg:
 		_free_node(combat)
 		return false
 	var floor_dmg: Dictionary = combat.resolve_melee_hit(
-		{"attack_rating": 5.0}, {"defense_rating": 20.0}
+		attacker, {"skill_modifiers": {"melee_defense": 80.0}}, DamageTypes.Id.SLASHING, 1, 3
 	)
-	if (
-		not bool(floor_dmg.get("hit", false))
-		or not is_equal_approx(float(floor_dmg.get("damage", 0.0)), 1.0)
-	):
-		_free_node(combat)
-		return false
-	var mid: Dictionary = combat.resolve_melee_hit({"attack_rating": 5.0}, {"defense_rating": 10.0})
-	if not bool(mid.get("hit", false)) or not is_equal_approx(float(mid.get("damage", 0.0)), 1.5):
+	if not bool(floor_dmg.get("hit", false)) or float(floor_dmg.get("damage", 0.0)) > 1.5:
 		_free_node(combat)
 		return false
 	_free_node(combat)
@@ -253,8 +264,12 @@ func _test_combat_stats_pipeline() -> bool:
 		_free_node(eq)
 		return false
 	var combat: Node = CombatSystemScr.new()
-	var strong_hit: Dictionary = combat.resolve_melee_hit(sa, sb)
-	var weak_hit: Dictionary = combat.resolve_melee_hit(sb, sa)
+	var strong_hit: Dictionary = combat.resolve_melee_hit(
+		sa, sb, DamageTypes.Id.SLASHING, 1, 3
+	)
+	var weak_hit: Dictionary = combat.resolve_melee_hit(
+		sb, sa, DamageTypes.Id.SLASHING, 1, 3
+	)
 	_free_node(combat)
 	_free_node(st)
 	_free_node(eq)

@@ -31,6 +31,13 @@ const BODY_AREAS: Array[StringName] = [
 @export var armor_rating_mitigation_scale: float = 0.18
 @export var minimum_damage_after_mitigation: float = 0.5
 
+## Melee hit base: weapon roll + melee_combat * scale - melee_defense * scale (see CombatSystem).
+@export var melee_skill_damage_scale: float = 0.08
+@export var melee_defense_damage_scale: float = 0.06
+## Legacy fallback when only attack_rating / defense_rating are passed (matches CharacterBalanceConfig).
+@export var legacy_attack_rating_skill_scale: float = 1.65
+@export var legacy_defense_rating_skill_scale: float = 1.5
+
 
 func pick_body_area() -> StringName:
 	return BODY_AREAS[randi_range(0, BODY_AREAS.size() - 1)]

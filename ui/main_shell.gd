@@ -5921,6 +5921,18 @@ func _show_item_inspect_dialog(desc: Dictionary) -> void:
 	_inspect_dialog.popup_centered()
 
 
+func _append_skill_inspect_lines(
+	lines: PackedStringArray, skill_mods: Dictionary, skill_levels: Dictionary = {}
+) -> void:
+	for sk in _Sch.ALL_SKILLS:
+		var mod_total: float = float(skill_mods.get(sk, 0.0))
+		var bought_rank: int = int(skill_levels.get(sk, 0))
+		var line: String = "%s: %.2f" % [_pretty_skill_label(sk), mod_total]
+		if bought_rank > 0:
+			line += " (rank %d)" % bought_rank
+		lines.append(line)
+
+
 func _build_inspect_text() -> String:
 	var lines: PackedStringArray = PackedStringArray()
 	if (
@@ -5992,13 +6004,15 @@ func _build_inspect_text() -> String:
 			var xp: int = _node_get_int(_selection_world_node, &"xp_reward", 0)
 			var lvl: int = _node_get_int(_selection_world_node, &"level", 1)
 			var tier: int = _node_get_int(_selection_world_node, &"loot_tier", 1)
-			var atk: float = _node_get_float(_selection_world_node, &"attack_rating", 0.0)
-			var defn: float = _node_get_float(_selection_world_node, &"defense_rating", 0.0)
+			var skill_mods: Dictionary = _selection_world_node.get("skill_modifiers") as Dictionary
+			var skill_levels: Dictionary = _selection_world_node.get("skill_levels") as Dictionary
 			var attrs: Dictionary = _selection_world_node.get("attributes") as Dictionary
 			lines.append("Level: %d  Loot tier: %d" % [lvl, tier])
 			lines.append("HP: %.0f / %.0f" % [cur, mx])
 			lines.append("Attributes: %s" % str(attrs))
-			lines.append("Attack / Defense: %.1f / %.1f" % [atk, defn])
+			if not skill_mods.is_empty():
+				lines.append("[b]Skills[/b]")
+				_append_skill_inspect_lines(lines, skill_mods, skill_levels)
 			lines.append("XP reward: %d" % xp)
 	elif (
 		_selection_portrait_source == "world"
