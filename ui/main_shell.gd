@@ -165,10 +165,9 @@ var _selection_world_node: Node = null
 ## Panel A vs Panel D: last explicit pick wins for Panel B.b portrait.
 var _selection_portrait_source: String = "none"
 var _selection_inventory_snapshot: Dictionary = {}
-## Panel B.c: directed attack/cast on selected enemy (focus character approaches).
-var _ui_attack_active: bool = false
-var _ui_attack_enemy_iid: int = 0
-var _ui_attack_last_strike_ms: int = 0
+## Panel B.c: per-character directed attack (persists when focus changes).
+## character_id -> { "enemy_iid": int, "last_strike_ms": int }
+var _ui_attack_orders: Dictionary = {}
 var _spell_cast_busy: bool = false
 var _spell_cast_elapsed_ms: float = 0.0
 var _spell_cast_duration_ms: float = 0.0
@@ -1299,7 +1298,7 @@ func bind_inventory_ui(
 		)
 	if not _boot_combat_hint_logged and _focus_character_id != &"":
 		_append_command_feed(
-			"[combat] Press Space or E near a red square to melee (training dummies).",
+			"[combat] Press E near a red square to melee (training dummies).",
 			_focus_character_id,
 		)
 		_boot_combat_hint_logged = true
@@ -1321,7 +1320,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	var k: InputEventKey = event as InputEventKey
 	if not k.pressed or k.echo:
 		return
-	if k.physical_keycode != KEY_SPACE and k.physical_keycode != KEY_E:
+	if k.physical_keycode != KEY_E:
 		return
 	if _try_melee_for_focus():
 		get_viewport().set_input_as_handled()
@@ -3025,15 +3024,21 @@ func _prey_hunters_map() -> Dictionary:
 			if not result.has(iid):
 				result[iid] = []
 			(result[iid] as Array).append(cid)
-	if _ui_attack_active and _focus_character_id != &"":
-		var en: Node2D = _resolve_ui_attack_enemy()
-		if en != null and is_instance_valid(en) and _world_actor_by_id.has(_focus_character_id):
-			var iid2: int = en.get_instance_id()
-			if not result.has(iid2):
-				result[iid2] = []
-			var arr2: Array = result[iid2] as Array
-			if not arr2.has(_focus_character_id):
-				arr2.append(_focus_character_id)
+	for atk_cid in _ui_attack_orders.keys():
+		var atk_id: StringName = atk_cid as StringName
+		if atk_id == &"" or not _world_actor_by_id.has(atk_id):
+			continue
+		var order: Dictionary = _ui_attack_orders[atk_cid] as Dictionary
+		var eid: int = int(order.get("enemy_iid", 0))
+		if eid == 0:
+			continue
+		var en: Object = instance_from_id(eid)
+		if en is Node2D and is_instance_valid(en) and (en as Node).is_inside_tree():
+			if not result.has(eid):
+				result[eid] = []
+			var arr2: Array = result[eid] as Array
+			if not arr2.has(atk_id):
+				arr2.append(atk_id)
 	for k in result.keys():
 		var arr: Array = result[k] as Array
 		arr.sort_custom(func(a, b) -> bool: return String(a) < String(b))
@@ -3957,8 +3962,8 @@ func _on_inventory_slot_context_menu_requested(
 	else:
 		_selection_inventory_snapshot = sel.duplicate()
 		_selection_portrait_source = "inventory"
-		_set_ui_attack_active(false)
-		_clear_player_spell_cast()
+		if _spell_cast_busy and _spell_cast_attacker_id == _focus_character_id:
+			_clear_player_spell_cast()
 		_refresh_selection_portrait()
 	_show_selection_context_menu_at(at_global)
 
@@ -4019,7 +4024,11 @@ func _show_selection_context_menu_at(global_position: Vector2) -> void:
 			var atk_lbl: String = (
 				"Casting…"
 				if (casting and cast_busy)
-				else ("Stop attack" if _ui_attack_active else ("Cast" if casting else "Attack"))
+				else (
+					"Stop attack"
+					if _ui_attack_order_active(_focus_character_id)
+					else ("Cast" if casting else "Attack")
+				)
 			)
 			pm.add_item(atk_lbl, _SEL_CTX_ATTACK_CAST)
 			var atk_ix: int = pm.get_item_index(_SEL_CTX_ATTACK_CAST)
@@ -4960,8 +4969,8 @@ func _on_inventory_slot_selection_changed(selection: Dictionary) -> void:
 	else:
 		_selection_inventory_snapshot = selection.duplicate()
 		_selection_portrait_source = "inventory"
-	_set_ui_attack_active(false)
-	_clear_player_spell_cast()
+	if _spell_cast_busy and _spell_cast_attacker_id == _focus_character_id:
+		_clear_player_spell_cast()
 	_refresh_selection_portrait()
 
 
@@ -5071,24 +5080,48 @@ func _refresh_selection_portrait() -> void:
 	_refresh_panel_b_auxiliary()
 
 
-func _set_ui_attack_active(active: bool) -> void:
-	_ui_attack_active = active
-	if not active:
-		_ui_attack_enemy_iid = 0
-		if _focus_character_id != &"":
-			var act: Node = _world_actor_by_id.get(_focus_character_id) as Node
-			if act != null and act.has_method("set_hunt_navigation_active"):
-				act.call("set_hunt_navigation_active", false)
-	_refresh_panel_b_auxiliary()
+func _ui_attack_order_active(character_id: StringName) -> bool:
+	if character_id == &"":
+		return false
+	return _ui_attack_orders.has(character_id)
 
 
-func _resolve_ui_attack_enemy() -> Node2D:
-	if _ui_attack_enemy_iid == 0:
+func _resolve_ui_attack_enemy_for(character_id: StringName) -> Node2D:
+	if not _ui_attack_orders.has(character_id):
 		return null
-	var o: Object = instance_from_id(_ui_attack_enemy_iid)
+	var order: Dictionary = _ui_attack_orders[character_id] as Dictionary
+	var eid: int = int(order.get("enemy_iid", 0))
+	if eid == 0:
+		return null
+	var o: Object = instance_from_id(eid)
 	if o is Node2D and is_instance_valid(o) and (o as Node).is_inside_tree():
 		return o as Node2D
 	return null
+
+
+func _set_ui_attack_order(character_id: StringName, active: bool, enemy_iid: int = 0) -> void:
+	if character_id == &"":
+		return
+	if active and enemy_iid != 0:
+		_ui_attack_orders[character_id] = {"enemy_iid": enemy_iid, "last_strike_ms": 0}
+	else:
+		_ui_attack_orders.erase(character_id)
+		var act: Node = _world_actor_by_id.get(character_id) as Node
+		if act != null and act.has_method("set_hunt_navigation_active"):
+			act.call("set_hunt_navigation_active", false)
+	_refresh_panel_b_auxiliary()
+
+
+func _set_ui_attack_active(active: bool) -> void:
+	if _focus_character_id == &"":
+		return
+	if active:
+		var eid: int = 0
+		if _selection_world_node != null and is_instance_valid(_selection_world_node):
+			eid = _selection_world_node.get_instance_id()
+		_set_ui_attack_order(_focus_character_id, eid != 0, eid)
+	else:
+		_set_ui_attack_order(_focus_character_id, false)
 
 
 func _clear_player_spell_cast() -> void:
@@ -5158,12 +5191,6 @@ func _try_start_player_spell_cast() -> void:
 
 func _tick_player_spell_cast(delta: float) -> void:
 	if not _spell_cast_busy:
-		return
-	if _focus_character_id != _spell_cast_attacker_id:
-		var caster: StringName = _spell_cast_attacker_id
-		_clear_player_spell_cast()
-		_append_command_feed("[ui] Cast cancelled.", caster)
-		_refresh_panel_b_auxiliary()
 		return
 	var tgt: Node2D
 	var o: Object = instance_from_id(_spell_cast_target_iid)
@@ -5244,10 +5271,10 @@ func _tick_player_spell_cast(delta: float) -> void:
 
 
 func _sync_ui_attack_to_selection() -> void:
-	if not _ui_attack_active:
+	if _focus_character_id == &"" or not _ui_attack_order_active(_focus_character_id):
 		return
 	if _selection_portrait_source != "world" or _selection_world_node == null:
-		_set_ui_attack_active(false)
+		_set_ui_attack_order(_focus_character_id, false)
 		return
 	var ctx: Dictionary = _attack_context_for(_focus_character_id)
 	var mode: String = str(ctx.get("mode", "none"))
@@ -5263,50 +5290,63 @@ func _sync_ui_attack_to_selection() -> void:
 	elif _selection_world_kind == "actor":
 		ok = casting_weapon and mode == "casting_support"
 	if not ok:
-		_set_ui_attack_active(false)
+		_set_ui_attack_order(_focus_character_id, false)
 		return
 	var sel_iid: int = _selection_world_node.get_instance_id()
-	if _ui_attack_enemy_iid != sel_iid:
-		_ui_attack_enemy_iid = sel_iid
-		_ui_attack_last_strike_ms = 0
+	var order: Dictionary = _ui_attack_orders[_focus_character_id] as Dictionary
+	if int(order.get("enemy_iid", 0)) != sel_iid:
+		order["enemy_iid"] = sel_iid
+		order["last_strike_ms"] = 0
+		_ui_attack_orders[_focus_character_id] = order
 
 
 func _tick_ui_directed_attack(_delta: float) -> void:
-	if not _ui_attack_active or _focus_character_id == &"":
+	if _ui_attack_orders.is_empty():
 		return
-	var ctx_mode: Dictionary = _attack_context_for(_focus_character_id)
-	if str(ctx_mode.get("mode", "")) in ["casting", "casting_support"]:
-		return
-	var enemy: Node2D = _resolve_ui_attack_enemy()
-	if enemy == null:
-		_set_ui_attack_active(false)
-		return
-	var actor: Node = _world_actor_by_id.get(_focus_character_id)
-	if actor == null or not (actor is Node2D):
-		return
-	var dist: float = (actor as Node2D).global_position.distance_to(enemy.global_position)
-	var ui_reach: float = float(
-		_attack_context_for(_focus_character_id).get("range_px", _MELEE_RANGE_PX)
-	)
-	if (
-		actor.has_method("set_hunt_navigation_active")
-		and actor.has_method("update_hunt_navigation_goal")
-	):
-		if dist > ui_reach * 0.92:
-			actor.call("set_hunt_navigation_active", true)
-			var ph: Dictionary = _prey_hunters_map()
-			var goal: Vector2 = _hunt_ring_goal_for(enemy, _focus_character_id, ph)
-			actor.call("update_hunt_navigation_goal", goal)
-		else:
-			actor.call("set_hunt_navigation_active", false)
+	var ph: Dictionary = _prey_hunters_map()
 	var now: int = Time.get_ticks_msec()
-	if now - _ui_attack_last_strike_ms < _attack_cooldown_ms(_focus_character_id):
-		return
-	var outcome: Dictionary = _perform_melee_against_node(
-		_focus_character_id, enemy, true, "[attack]"
-	)
-	if bool(outcome.get("struck", false)):
-		_ui_attack_last_strike_ms = now
+	var stale: Array[StringName] = []
+	for atk_cid in _ui_attack_orders.keys():
+		var attacker_id: StringName = (
+			atk_cid as StringName if atk_cid is StringName else StringName(str(atk_cid))
+		)
+		if attacker_id == &"":
+			stale.append(atk_cid as StringName)
+			continue
+		var ctx_mode: Dictionary = _attack_context_for(attacker_id)
+		if str(ctx_mode.get("mode", "")) in ["casting", "casting_support"]:
+			continue
+		var enemy: Node2D = _resolve_ui_attack_enemy_for(attacker_id)
+		if enemy == null:
+			stale.append(attacker_id)
+			continue
+		var actor: Node = _world_actor_by_id.get(attacker_id)
+		if actor == null or not (actor is Node2D):
+			stale.append(attacker_id)
+			continue
+		var dist: float = (actor as Node2D).global_position.distance_to(enemy.global_position)
+		var ui_reach: float = float(ctx_mode.get("range_px", _MELEE_RANGE_PX))
+		if (
+			actor.has_method("set_hunt_navigation_active")
+			and actor.has_method("update_hunt_navigation_goal")
+		):
+			if dist > ui_reach * 0.92:
+				actor.call("set_hunt_navigation_active", true)
+				var goal: Vector2 = _hunt_ring_goal_for(enemy, attacker_id, ph)
+				actor.call("update_hunt_navigation_goal", goal)
+			else:
+				actor.call("set_hunt_navigation_active", false)
+		var order: Dictionary = _ui_attack_orders[attacker_id] as Dictionary
+		var last_ms: int = int(order.get("last_strike_ms", 0))
+		if now - last_ms < _attack_cooldown_ms(attacker_id):
+			continue
+		var outcome: Dictionary = _perform_melee_against_node(attacker_id, enemy, true, "[attack]")
+		if bool(outcome.get("struck", false)):
+			order["last_strike_ms"] = now
+			_ui_attack_orders[attacker_id] = order
+	for sid in stale:
+		if sid != &"":
+			_set_ui_attack_order(sid, false)
 
 
 func _refresh_panel_b_auxiliary() -> void:
@@ -5444,7 +5484,7 @@ func _refresh_bc_action_row() -> void:
 			_bc_btn_attack.text = "Casting…"
 		elif casting_weapon:
 			_bc_btn_attack.text = "Cast"
-		elif _ui_attack_active:
+		elif _ui_attack_order_active(_focus_character_id):
 			_bc_btn_attack.text = "Stop attack"
 		else:
 			_bc_btn_attack.text = "Attack"
@@ -5585,17 +5625,14 @@ func _on_bc_attack_pressed() -> void:
 				return
 		_try_start_player_spell_cast()
 		return
-	if _ui_attack_active:
+	if _ui_attack_order_active(_focus_character_id):
 		_set_ui_attack_active(false)
 		return
 	if is_enemy:
 		if mode == "casting_support":
 			_append_command_feed("[ui] Choose a combat bolt to use on enemies.")
 			return
-	_ui_attack_active = true
-	_ui_attack_enemy_iid = _selection_world_node.get_instance_id()
-	_ui_attack_last_strike_ms = 0
-	_refresh_panel_b_auxiliary()
+	_set_ui_attack_order(_focus_character_id, true, _selection_world_node.get_instance_id())
 	var tgt_lbl: String = str(_selection_world_node.name)
 	if is_actor and _registry != null:
 		var td: Resource = _registry.get_character(_selection_world_id)

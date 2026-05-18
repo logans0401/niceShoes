@@ -264,12 +264,8 @@ func _test_combat_stats_pipeline() -> bool:
 		_free_node(eq)
 		return false
 	var combat: Node = CombatSystemScr.new()
-	var strong_hit: Dictionary = combat.resolve_melee_hit(
-		sa, sb, DamageTypes.Id.SLASHING, 1, 3
-	)
-	var weak_hit: Dictionary = combat.resolve_melee_hit(
-		sb, sa, DamageTypes.Id.SLASHING, 1, 3
-	)
+	var strong_hit: Dictionary = combat.resolve_melee_hit(sa, sb, DamageTypes.Id.SLASHING, 1, 3)
+	var weak_hit: Dictionary = combat.resolve_melee_hit(sb, sa, DamageTypes.Id.SLASHING, 1, 3)
 	_free_node(combat)
 	_free_node(st)
 	_free_node(eq)
