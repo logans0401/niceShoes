@@ -2174,8 +2174,21 @@ func _try_melee_for_focus() -> bool:
 	return bool(r.get("handled", false))
 
 
+func _enemy_is_alive_for_combat(enemy: Node) -> bool:
+	if enemy == null:
+		return false
+	if enemy.has_method("is_alive"):
+		return bool(enemy.call("is_alive"))
+	var hp: Variant = enemy.get("current_health")
+	if hp != null:
+		return float(hp) > 0.0
+	return true
+
+
 func _tick_hostile_enemies(delta: float) -> void:
 	for n in get_tree().get_nodes_in_group(&"combat_enemies"):
+		if not _enemy_is_alive_for_combat(n):
+			continue
 		if n.has_method("tick_hostile_combat"):
 			n.call("tick_hostile_combat", delta, self)
 
@@ -2184,6 +2197,8 @@ func try_enemy_melee_character(enemy: Node, victim_id: StringName) -> bool:
 	if _combat == null or _registry == null or _stats == null or _equipment == null:
 		return false
 	if enemy == null or not (enemy is Node2D):
+		return false
+	if not _enemy_is_alive_for_combat(enemy):
 		return false
 	if (
 		enemy.has_method("has_landed_hit_from")
@@ -2211,6 +2226,8 @@ func try_enemy_melee_character(enemy: Node, victim_id: StringName) -> bool:
 
 
 func _resolve_enemy_melee_exchange(enemy: Node2D, victim_id: StringName) -> void:
+	if not _enemy_is_alive_for_combat(enemy):
+		return
 	var enemy_stats: Dictionary = enemy.call("get_combat_stats") as Dictionary
 	var data: Resource = _registry.get_character(victim_id)
 	if data == null:

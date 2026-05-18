@@ -27,6 +27,8 @@ const CharacterSchemaScr := preload("res://scripts/character_schema.gd")
 const MagicRulesScr := preload("res://scripts/magic_rules.gd")
 const WorldHeroSheetScr := preload("res://scripts/world_hero_sheet_builder.gd")
 const EnemyStatBuilderScr := preload("res://systems/enemy_stat_builder.gd")
+const CombatTestEnemyScr := preload("res://scripts/combat_test_enemy.gd")
+const MockCombatShellScr := preload("res://tests/mock_combat_shell.gd")
 const PRELOAD_CHARACTER_BALANCE := preload("res://data/default_character_balance.tres")
 const PRELOAD_INVENTORY_BALANCE := preload("res://data/default_inventory_balance.tres")
 
@@ -56,6 +58,9 @@ func _run_all() -> int:
 		return 1
 	if not _test_combat_body_area_mitigation():
 		push_error("test_harness: combat body-area mitigation failed")
+		return 1
+	if not _test_dead_enemy_does_not_retaliate():
+		push_error("test_harness: dead enemy retaliation gate failed")
 		return 1
 	if not _test_arcane_connection_reduces_mana_cost():
 		push_error("test_harness: arcane connection mana reduction failed")
@@ -256,6 +261,49 @@ func _test_combat_stats_pipeline() -> bool:
 	var d1: float = float(strong_hit.get("damage", 0.0))
 	var d2: float = float(weak_hit.get("damage", 0.0))
 	return bool(strong_hit.get("hit", false)) and bool(weak_hit.get("hit", false)) and d1 > d2
+
+
+func _test_dead_enemy_does_not_retaliate() -> bool:
+	var enemy = CombatTestEnemyScr.new()
+	enemy.max_health = 24.0
+	enemy.current_health = 24.0
+	var shell = MockCombatShellScr.new()
+	if enemy.take_damage(24.0, &"player_a"):
+		_free_node(shell)
+		_free_node(enemy)
+		return false
+	if enemy.is_alive():
+		_free_node(shell)
+		_free_node(enemy)
+		return false
+	if enemy.has_landed_hit_from(&"player_a"):
+		_free_node(shell)
+		_free_node(enemy)
+		return false
+	enemy.tick_hostile_combat(1.0, shell)
+	if shell.enemy_melee_called:
+		_free_node(shell)
+		_free_node(enemy)
+		return false
+	var enemy2 = CombatTestEnemyScr.new()
+	enemy2.max_health = 50.0
+	enemy2.current_health = 50.0
+	var shell2 = MockCombatShellScr.new()
+	if not enemy2.take_damage(5.0, &"player_b"):
+		_free_node(shell2)
+		_free_node(enemy2)
+		return false
+	if not enemy2.has_landed_hit_from(&"player_b"):
+		_free_node(shell2)
+		_free_node(enemy2)
+		return false
+	enemy2.tick_hostile_combat(1.0, shell2)
+	var ok: bool = shell2.enemy_melee_called
+	_free_node(shell2)
+	_free_node(enemy2)
+	_free_node(shell)
+	_free_node(enemy)
+	return ok
 
 
 func _test_combat_body_area_mitigation() -> bool:

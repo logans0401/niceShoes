@@ -43,6 +43,7 @@ var _landed_hit_from: Dictionary = {}
 ## character_id -> true after this enemy has dealt melee damage to that character (keeps aggro for assist / AI).
 var _aggressed_against: Dictionary = {}
 var _attack_cd: float = 0.0
+var _is_dead: bool = false
 
 @onready var _glyph: Polygon2D = $Glyph
 
@@ -103,8 +104,12 @@ func get_combat_stats() -> Dictionary:
 	}
 
 
+func is_alive() -> bool:
+	return not _is_dead and current_health > 0.0
+
+
 func set_hostile_toward(character_id: StringName, hostile: bool = true) -> void:
-	if character_id == &"":
+	if character_id == &"" or not is_alive():
 		return
 	_hostile_to[character_id] = hostile
 	if not hostile:
@@ -120,7 +125,7 @@ func has_landed_hit_from(character_id: StringName) -> bool:
 
 
 func register_aggro_against(character_id: StringName) -> void:
-	if character_id == &"":
+	if character_id == &"" or not is_alive():
 		return
 	_aggressed_against[character_id] = true
 	set_hostile_toward(character_id, true)
@@ -144,21 +149,35 @@ func can_attack_target(_character_id: StringName) -> bool:
 
 
 func take_damage(amount: float, attacker_id: StringName = &"") -> bool:
+	if not is_alive():
+		return false
 	if amount <= 0.0:
-		return current_health > 0.0
+		return true
 	current_health = maxf(0.0, current_health - amount)
-	if attacker_id != &"":
-		_landed_hit_from[attacker_id] = true
-		set_hostile_toward(attacker_id, true)
 	_flash_glyph()
 	_refresh_glyph()
 	if current_health <= 0.0:
+		_mark_dead()
 		queue_free()
 		return false
+	if attacker_id != &"":
+		_landed_hit_from[attacker_id] = true
+		set_hostile_toward(attacker_id, true)
 	return true
 
 
+func _mark_dead() -> void:
+	_is_dead = true
+	current_health = 0.0
+	_hostile_to.clear()
+	_landed_hit_from.clear()
+	_aggressed_against.clear()
+	_attack_cd = 0.0
+
+
 func tick_hostile_combat(delta: float, shell: Node) -> void:
+	if not is_alive():
+		return
 	if shell == null:
 		return
 	## Drop hostility toward characters who never landed a damaging hit (no retaliation without provocation).
