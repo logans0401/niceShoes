@@ -2,8 +2,12 @@ extends CharacterBody2D
 class_name CombatTestEnemy
 ## Placeholder enemy for combat testing. Hostile AI strikes on its own cadence once provoked.
 
+const _EnemyStatBuilder := preload("res://systems/enemy_stat_builder.gd")
+
 @export var max_health: float = 42.0
-@export_range(1, 100, 1) var level: int = 3
+@export var max_stamina: float = 42.0
+@export var max_mana: float = 10.0
+@export_range(1, 100, 1) var level: int = 1
 @export var loot_tier: int = 1
 @export var attributes: Dictionary = {
 	"strength": 10,
@@ -13,8 +17,10 @@ class_name CombatTestEnemy
 	"mind": 10,
 	"wisdom": 10,
 }
+@export var skill_levels: Dictionary = {}
 @export var attack_rating: float = 7.0
 @export var defense_rating: float = 3.5
+@export var skill_modifiers: Dictionary = {}
 ## Secret weapon profile for damage rolls (not shown to player unless you document it on the scene).
 @export var hidden_damage_min: int = 1
 @export var hidden_damage_max: int = 3
@@ -26,6 +32,10 @@ class_name CombatTestEnemy
 @export var xp_reward: int = 18
 
 var current_health: float = 0.0
+var current_stamina: float = 0.0
+var current_mana: float = 0.0
+var _sheet: Resource = null
+var _stats_generated: bool = false
 ## character_id -> true when this enemy will fight that character (typically after being hit by them).
 var _hostile_to: Dictionary = {}
 ## character_id -> true only after that character has landed a damaging hit on this enemy (retaliation gate).
@@ -39,9 +49,35 @@ var _attack_cd: float = 0.0
 
 func _ready() -> void:
 	add_to_group(&"combat_enemies")
-	loot_tier = clampi(int(ceil(float(maxi(1, level)) / 5.0)), 1, 20)
+	generate_stats_at_spawn()
 	current_health = max_health
+	current_stamina = max_stamina
+	current_mana = max_mana
+	loot_tier = clampi(int(ceil(float(maxi(1, level)) / 5.0)), 1, 20)
 	_refresh_glyph()
+
+
+func generate_stats_at_spawn() -> void:
+	if _stats_generated:
+		return
+	var built: Dictionary = _EnemyStatBuilder.build()
+	_apply_generated_sheet(built["data"] as Resource, built["derived"] as Dictionary)
+	_stats_generated = true
+
+
+func _apply_generated_sheet(data: Resource, derived: Dictionary) -> void:
+	_sheet = data
+	level = clampi(int(data.level), 1, 100)
+	attributes = (data.attributes as Dictionary).duplicate(true)
+	skill_levels = (data.skill_levels as Dictionary).duplicate(true)
+	max_health = maxf(1.0, float(derived.get("max_health", 1.0)))
+	max_stamina = maxf(1.0, float(derived.get("max_stamina", 1.0)))
+	max_mana = maxf(0.0, float(derived.get("max_mana", 0.0)))
+	attack_rating = float(derived.get("attack_rating", 1.0))
+	defense_rating = float(derived.get("defense_rating", 1.0))
+	skill_modifiers = (derived.get("skill_modifiers", {}) as Dictionary).duplicate(true)
+	attack_interval_sec = float(derived.get("melee_attack_interval_sec", attack_interval_sec))
+	xp_reward = maxi(1, 5 + level * 6)
 
 
 func get_combat_stats() -> Dictionary:
@@ -53,7 +89,17 @@ func get_combat_stats() -> Dictionary:
 		"damage_type": hidden_damage_type,
 		"level": level,
 		"attributes": attributes,
-		"vitals": {"health": current_health, "max_health": max_health},
+		"skill_levels": skill_levels,
+		"skill_modifiers": skill_modifiers,
+		"vitals":
+		{
+			"health": current_health,
+			"max_health": max_health,
+			"stamina": current_stamina,
+			"max_stamina": max_stamina,
+			"mana": current_mana,
+			"max_mana": max_mana,
+		},
 	}
 
 

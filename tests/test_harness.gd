@@ -26,6 +26,7 @@ const GameConstantsScr := preload("res://scripts/game_constants.gd")
 const CharacterSchemaScr := preload("res://scripts/character_schema.gd")
 const MagicRulesScr := preload("res://scripts/magic_rules.gd")
 const WorldHeroSheetScr := preload("res://scripts/world_hero_sheet_builder.gd")
+const EnemyStatBuilderScr := preload("res://systems/enemy_stat_builder.gd")
 const PRELOAD_CHARACTER_BALANCE := preload("res://data/default_character_balance.tres")
 const PRELOAD_INVENTORY_BALANCE := preload("res://data/default_inventory_balance.tres")
 
@@ -103,6 +104,9 @@ func _run_all() -> int:
 		return 1
 	if not _test_level_progression_first_map():
 		push_error("test_harness: level progression / first map goal failed")
+		return 1
+	if not _test_enemy_stat_generation():
+		push_error("test_harness: enemy stat generation failed")
 		return 1
 	if not _test_unspent_spend_preserves_total():
 		push_error("test_harness: unspent spend / total XP invariant failed")
@@ -694,6 +698,48 @@ func _test_character_data_resource_script() -> bool:
 	cd.character_id = "script_fixture"
 	cd.ensure_defaults()
 	return cd.get_script() == CharacterDataScr
+
+
+func _test_enemy_stat_generation() -> bool:
+	var balance = _balance()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 90210
+	var saw_level_three: bool = false
+	var saw_skill_ranks: bool = false
+	for _i in range(32):
+		var built: Dictionary = EnemyStatBuilderScr.build(rng, balance)
+		var data: Resource = built["data"] as Resource
+		var derived: Dictionary = built["derived"] as Dictionary
+		var attrs: Dictionary = data.attributes as Dictionary
+		var spent: int = EnemyStatBuilderScr.attribute_points_spent_above_floor(attrs)
+		if spent > EnemyStatBuilderScr.ATTR_POINT_POOL:
+			return false
+		for attr in CharacterSchemaScr.ALL_ATTRIBUTES:
+			var v: int = int(attrs.get(attr, 0))
+			if v < EnemyStatBuilderScr.ATTR_FLOOR or v > EnemyStatBuilderScr.ATTR_CAP:
+				return false
+		var lvl: int = int(data.level)
+		if lvl < EnemyStatBuilderScr.MIN_ENEMY_LEVEL or lvl > EnemyStatBuilderScr.MAX_ENEMY_LEVEL:
+			return false
+		if float(derived.get("max_health", 0.0)) <= 0.0:
+			return false
+		if float(derived.get("attack_rating", 0.0)) <= 0.0:
+			return false
+		if float(derived.get("defense_rating", 0.0)) < 0.0:
+			return false
+		var sm: Dictionary = derived.get("skill_modifiers", {}) as Dictionary
+		if sm.size() != _SKILL_COUNT:
+			return false
+		if lvl >= 3:
+			saw_level_three = true
+		if lvl >= 2:
+			for sk in CharacterSchemaScr.ALL_SKILLS:
+				if int(data.skill_levels.get(sk, 0)) > 0:
+					saw_skill_ranks = true
+					break
+	if not saw_level_three or not saw_skill_ranks:
+		return false
+	return true
 
 
 func _test_level_progression_first_map() -> bool:
