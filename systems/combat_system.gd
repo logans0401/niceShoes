@@ -20,15 +20,51 @@ func _ready() -> void:
 		configure()
 
 
+func melee_evade_chance(attacker_stats: Dictionary, defender_stats: Dictionary) -> float:
+	if _combat_balance == null:
+		configure()
+	var melee_atk: float = _melee_skill_from_stats(
+		attacker_stats, &"attack_rating", _Sch.SKILL_MELEE_COMBAT
+	)
+	var melee_def: float = _melee_skill_from_stats(
+		defender_stats, &"defense_rating", _Sch.SKILL_MELEE_DEFENSE
+	)
+	var contest_sum: float = melee_def + melee_atk
+	var contest: float = melee_def / contest_sum if contest_sum > 0.0 else 0.0
+	return clampf(
+		(
+			contest * float(_combat_balance.melee_evade_scale)
+			+ float(_combat_balance.melee_evade_base)
+		),
+		float(_combat_balance.melee_evade_min),
+		float(_combat_balance.melee_evade_max),
+	)
+
+
 func resolve_melee_hit(
 	attacker_stats: Dictionary,
 	defender_stats: Dictionary,
 	damage_type: int = DamageTypes.Id.SLASHING,
 	weapon_damage_min: int = 0,
 	weapon_damage_max: int = 0,
+	evade_roll: float = -1.0,
 ) -> Dictionary:
 	if _combat_balance == null:
 		configure()
+	var evade_chance: float = melee_evade_chance(attacker_stats, defender_stats)
+	var roll: float = evade_roll if evade_roll >= 0.0 else randf()
+	if roll < evade_chance:
+		combat_event_logged.emit("Attack evaded (%.0f%% chance)" % (evade_chance * 100.0))
+		return {
+			"damage": 0.0,
+			"raw_damage": 0.0,
+			"mitigation": 0.0,
+			"hit": false,
+			"evaded": true,
+			"evade_chance": evade_chance,
+			"damage_type": damage_type,
+			"target_area": &"",
+		}
 	var melee_atk: float = _melee_skill_from_stats(
 		attacker_stats, &"attack_rating", _Sch.SKILL_MELEE_COMBAT
 	)
@@ -57,6 +93,8 @@ func resolve_melee_hit(
 		"raw_damage": raw,
 		"mitigation": float(mitigated.get("mitigation", 0.0)),
 		"hit": true,
+		"evaded": false,
+		"evade_chance": evade_chance,
 		"damage_type": damage_type,
 		"target_area": target_area,
 	}

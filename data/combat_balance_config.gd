@@ -34,6 +34,11 @@ const BODY_AREAS: Array[StringName] = [
 ## Melee hit base: weapon roll + melee_combat * scale - melee_defense * scale (see CombatSystem).
 @export var melee_skill_damage_scale: float = 0.08
 @export var melee_defense_damage_scale: float = 0.06
+## Evade chance = clamp(def / (def + atk) * scale + base, min, max) using melee skills.
+@export var melee_evade_scale: float = 0.55
+@export var melee_evade_base: float = 0.02
+@export var melee_evade_min: float = 0.02
+@export var melee_evade_max: float = 0.55
 ## Legacy fallback when only attack_rating / defense_rating are passed (matches CharacterBalanceConfig).
 @export var legacy_attack_rating_skill_scale: float = 1.65
 @export var legacy_defense_rating_skill_scale: float = 1.5

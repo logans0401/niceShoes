@@ -53,6 +53,9 @@ func _run_all() -> int:
 	if not _test_combat_melee_resolve():
 		push_error("test_harness: combat melee resolve failed")
 		return 1
+	if not _test_melee_evade_chance():
+		push_error("test_harness: melee evade chance failed")
+		return 1
 	if not _test_combat_stats_pipeline():
 		push_error("test_harness: combat stats pipeline failed")
 		return 1
@@ -212,7 +215,7 @@ func _test_combat_melee_resolve() -> bool:
 	var soft_def: Dictionary = {"skill_modifiers": {"melee_defense": 10.0}}
 	var tough_def: Dictionary = {"skill_modifiers": {"melee_defense": 35.0}}
 	var hit: Dictionary = combat.resolve_melee_hit(
-		attacker, soft_def, DamageTypes.Id.SLASHING, 1, 3
+		attacker, soft_def, DamageTypes.Id.SLASHING, 1, 3, 1.0
 	)
 	if not bool(hit.get("hit", false)):
 		_free_node(combat)
@@ -222,7 +225,7 @@ func _test_combat_melee_resolve() -> bool:
 		_free_node(combat)
 		return false
 	var reduced: Dictionary = combat.resolve_melee_hit(
-		attacker, tough_def, DamageTypes.Id.SLASHING, 1, 3
+		attacker, tough_def, DamageTypes.Id.SLASHING, 1, 3, 1.0
 	)
 	if not bool(reduced.get("hit", false)):
 		_free_node(combat)
@@ -231,9 +234,39 @@ func _test_combat_melee_resolve() -> bool:
 		_free_node(combat)
 		return false
 	var floor_dmg: Dictionary = combat.resolve_melee_hit(
-		attacker, {"skill_modifiers": {"melee_defense": 80.0}}, DamageTypes.Id.SLASHING, 1, 3
+		attacker, {"skill_modifiers": {"melee_defense": 80.0}}, DamageTypes.Id.SLASHING, 1, 3, 1.0
 	)
 	if not bool(floor_dmg.get("hit", false)) or float(floor_dmg.get("damage", 0.0)) > 1.5:
+		_free_node(combat)
+		return false
+	_free_node(combat)
+	return true
+
+
+func _test_melee_evade_chance() -> bool:
+	var combat: Node = CombatSystemScr.new()
+	var player_atk: Dictionary = {"skill_modifiers": {"melee_combat": 66.67}}
+	var player_def: Dictionary = {"skill_modifiers": {"melee_defense": 36.67}}
+	var enemy_atk: Dictionary = {"skill_modifiers": {"melee_combat": 36.33}}
+	var enemy_def: Dictionary = {"skill_modifiers": {"melee_defense": 37.33}}
+	var enemy_evades_player: float = combat.melee_evade_chance(player_atk, enemy_def)
+	var player_evades_enemy: float = combat.melee_evade_chance(enemy_atk, player_def)
+	if absf(enemy_evades_player - 0.217) > 0.01:
+		_free_node(combat)
+		return false
+	if absf(player_evades_enemy - 0.296) > 0.01:
+		_free_node(combat)
+		return false
+	var miss: Dictionary = combat.resolve_melee_hit(
+		player_atk, enemy_def, DamageTypes.Id.SLASHING, 1, 3, 0.0
+	)
+	if bool(miss.get("hit", true)) or not bool(miss.get("evaded", false)):
+		_free_node(combat)
+		return false
+	var landed: Dictionary = combat.resolve_melee_hit(
+		player_atk, enemy_def, DamageTypes.Id.SLASHING, 1, 3, 1.0
+	)
+	if not bool(landed.get("hit", false)):
 		_free_node(combat)
 		return false
 	_free_node(combat)
@@ -259,13 +292,19 @@ func _test_combat_stats_pipeline() -> bool:
 	rookie.ensure_defaults()
 	var sa: Dictionary = st.get_effective_stats(&"combat_br", bruiser, eq)
 	var sb: Dictionary = st.get_effective_stats(&"combat_ro", rookie, eq)
-	if float(sa.get("attack_rating", 0.0)) <= float(sb.get("attack_rating", 0.0)):
+	var sa_mods: Dictionary = sa.get("skill_modifiers", {}) as Dictionary
+	var sb_mods: Dictionary = sb.get("skill_modifiers", {}) as Dictionary
+	var br_melee: float = float(sa_mods.get("melee_combat", 0.0))
+	var ro_melee: float = float(sb_mods.get("melee_combat", 0.0))
+	if br_melee <= ro_melee:
 		_free_node(st)
 		_free_node(eq)
 		return false
 	var combat: Node = CombatSystemScr.new()
-	var strong_hit: Dictionary = combat.resolve_melee_hit(sa, sb, DamageTypes.Id.SLASHING, 1, 3)
-	var weak_hit: Dictionary = combat.resolve_melee_hit(sb, sa, DamageTypes.Id.SLASHING, 1, 3)
+	var strong_hit: Dictionary = combat.resolve_melee_hit(
+		sa, sb, DamageTypes.Id.SLASHING, 5, 5, 1.0
+	)
+	var weak_hit: Dictionary = combat.resolve_melee_hit(sb, sa, DamageTypes.Id.SLASHING, 5, 5, 1.0)
 	_free_node(combat)
 	_free_node(st)
 	_free_node(eq)
@@ -330,6 +369,9 @@ func _test_combat_body_area_mitigation() -> bool:
 			{"attack_rating": 10.0},
 			{"defense_rating": 0.0, "armor_by_area": armor_by_area},
 			DamageTypes.Id.SLASHING,
+			0,
+			0,
+			1.0,
 		)
 	)
 	var ok: bool = (
@@ -457,6 +499,7 @@ func _test_protection_spell_catalog_and_mitigation() -> bool:
 			DamageTypes.Id.FIRE,
 			1000,
 			1000,
+			1.0,
 		)
 	)
 	var protected: Dictionary = (
@@ -467,6 +510,7 @@ func _test_protection_spell_catalog_and_mitigation() -> bool:
 			DamageTypes.Id.FIRE,
 			1000,
 			1000,
+			1.0,
 		)
 	)
 	var ok: bool = float(protected.get("damage", 0.0)) < float(base.get("damage", 0.0))
