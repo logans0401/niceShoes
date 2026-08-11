@@ -25,6 +25,7 @@ const AutomationSystemScr := preload("res://systems/automation_system.gd")
 const GameConstantsScr := preload("res://scripts/game_constants.gd")
 const CharacterSchemaScr := preload("res://scripts/character_schema.gd")
 const MagicRulesScr := preload("res://scripts/magic_rules.gd")
+const DamageTypesScr := preload("res://scripts/damage_types.gd")
 const WorldHeroSheetScr := preload("res://scripts/world_hero_sheet_builder.gd")
 const EnemyStatBuilderScr := preload("res://systems/enemy_stat_builder.gd")
 const CombatTestEnemyScr := preload("res://scripts/combat_test_enemy.gd")
@@ -215,7 +216,7 @@ func _test_combat_melee_resolve() -> bool:
 	var soft_def: Dictionary = {"skill_modifiers": {"melee_defense": 10.0}}
 	var tough_def: Dictionary = {"skill_modifiers": {"melee_defense": 35.0}}
 	var hit: Dictionary = combat.resolve_melee_hit(
-		attacker, soft_def, DamageTypes.Id.SLASHING, 1, 3, 1.0
+		attacker, soft_def, DamageTypesScr.Id.SLASHING, 1, 3, 1.0
 	)
 	if not bool(hit.get("hit", false)):
 		_free_node(combat)
@@ -225,7 +226,7 @@ func _test_combat_melee_resolve() -> bool:
 		_free_node(combat)
 		return false
 	var reduced: Dictionary = combat.resolve_melee_hit(
-		attacker, tough_def, DamageTypes.Id.SLASHING, 1, 3, 1.0
+		attacker, tough_def, DamageTypesScr.Id.SLASHING, 1, 3, 1.0
 	)
 	if not bool(reduced.get("hit", false)):
 		_free_node(combat)
@@ -234,7 +235,12 @@ func _test_combat_melee_resolve() -> bool:
 		_free_node(combat)
 		return false
 	var floor_dmg: Dictionary = combat.resolve_melee_hit(
-		attacker, {"skill_modifiers": {"melee_defense": 80.0}}, DamageTypes.Id.SLASHING, 1, 3, 1.0
+		attacker,
+		{"skill_modifiers": {"melee_defense": 80.0}},
+		DamageTypesScr.Id.SLASHING,
+		1,
+		3,
+		1.0
 	)
 	if not bool(floor_dmg.get("hit", false)) or float(floor_dmg.get("damage", 0.0)) > 1.5:
 		_free_node(combat)
@@ -258,13 +264,13 @@ func _test_melee_evade_chance() -> bool:
 		_free_node(combat)
 		return false
 	var miss: Dictionary = combat.resolve_melee_hit(
-		player_atk, enemy_def, DamageTypes.Id.SLASHING, 1, 3, 0.0
+		player_atk, enemy_def, DamageTypesScr.Id.SLASHING, 1, 3, 0.0
 	)
 	if bool(miss.get("hit", true)) or not bool(miss.get("evaded", false)):
 		_free_node(combat)
 		return false
 	var landed: Dictionary = combat.resolve_melee_hit(
-		player_atk, enemy_def, DamageTypes.Id.SLASHING, 1, 3, 1.0
+		player_atk, enemy_def, DamageTypesScr.Id.SLASHING, 1, 3, 1.0
 	)
 	if not bool(landed.get("hit", false)):
 		_free_node(combat)
@@ -302,9 +308,11 @@ func _test_combat_stats_pipeline() -> bool:
 		return false
 	var combat: Node = CombatSystemScr.new()
 	var strong_hit: Dictionary = combat.resolve_melee_hit(
-		sa, sb, DamageTypes.Id.SLASHING, 5, 5, 1.0
+		sa, sb, DamageTypesScr.Id.SLASHING, 5, 5, 1.0
 	)
-	var weak_hit: Dictionary = combat.resolve_melee_hit(sb, sa, DamageTypes.Id.SLASHING, 5, 5, 1.0)
+	var weak_hit: Dictionary = combat.resolve_melee_hit(
+		sb, sa, DamageTypesScr.Id.SLASHING, 5, 5, 1.0
+	)
 	_free_node(combat)
 	_free_node(st)
 	_free_node(eq)
@@ -362,13 +370,15 @@ func _test_combat_body_area_mitigation() -> bool:
 	combat.configure(cfg)
 	var armor_by_area: Dictionary = {}
 	for area in CombatBalanceScr.BODY_AREAS:
-		armor_by_area[area] = {"armor_level": 5.0, "damage_ratings": {DamageTypes.Id.SLASHING: 5}}
+		armor_by_area[area] = {
+			"armor_level": 5.0, "damage_ratings": {DamageTypesScr.Id.SLASHING: 5}
+		}
 	var res: Dictionary = (
 		combat
 		. resolve_melee_hit(
 			{"attack_rating": 10.0},
 			{"defense_rating": 0.0, "armor_by_area": armor_by_area},
-			DamageTypes.Id.SLASHING,
+			DamageTypesScr.Id.SLASHING,
 			0,
 			0,
 			1.0,
@@ -473,7 +483,7 @@ func _test_protection_spell_catalog_and_mitigation() -> bool:
 			return false
 	var cd: Resource = CharacterDataScr.new()
 	cd.transient_armor_bonus = MagicRulesScr.ARMOR_PROTECTION_AMOUNT
-	cd.transient_damage_protection_percent[str(DamageTypes.Id.FIRE)] = (
+	cd.transient_damage_protection_percent[str(DamageTypesScr.Id.FIRE)] = (
 		MagicRulesScr.DAMAGE_TYPE_PROTECTION_PERCENT
 	)
 	var stats: Node = StatsSystemScr.new()
@@ -496,7 +506,7 @@ func _test_protection_spell_catalog_and_mitigation() -> bool:
 		. resolve_melee_hit(
 			{"attack_rating": 10.0},
 			{"defense_rating": 0.0},
-			DamageTypes.Id.FIRE,
+			DamageTypesScr.Id.FIRE,
 			1000,
 			1000,
 			1.0,
@@ -507,7 +517,7 @@ func _test_protection_spell_catalog_and_mitigation() -> bool:
 		. resolve_melee_hit(
 			{"attack_rating": 10.0},
 			effective,
-			DamageTypes.Id.FIRE,
+			DamageTypesScr.Id.FIRE,
 			1000,
 			1000,
 			1.0,

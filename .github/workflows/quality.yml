@@ -29,6 +29,7 @@ jobs:
         with:
           version: 4.6.2
           include-templates: false
+          use-dotnet: false
 
       - name: Headless tests
         run: godot --headless --path . -s res://tests/test_harness.gd
