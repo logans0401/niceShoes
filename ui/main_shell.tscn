@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://ui/main_shell.gd" id="1_shell"]
 [ext_resource type="Script" path="res://ui/automation_queue_host.gd" id="2_qhost"]
+[ext_resource type="Script" path="res://ui/attack_cooldown_button.gd" id="3_atkbtn"]
 
 [node name="MainShell" type="Control"]
 layout_mode = 3
@@ -284,6 +285,7 @@ unique_name_in_owner = true
 visible = false
 layout_mode = 2
 text = "Attack"
+script = ExtResource("3_atkbtn")
 
 [node name="BtnBCLoot" type="Button" parent="Margin/RootColumn/MidRow/LeftColumn/BottomBand/PanelBC_CharActions/PanelBCInterior"]
 unique_name_in_owner = true

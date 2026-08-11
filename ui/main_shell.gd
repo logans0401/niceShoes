@@ -79,7 +79,7 @@ const _DEFAULT_MERCHANT_ID := &"default_merchant"
 @onready var _bb_bar_st: ProgressBar = %PanelBBBarStamina
 @onready var _bb_bar_mn: ProgressBar = %PanelBBBarMana
 @onready var _btn_bc_meditate: Button = %BtnBCMeditate
-@onready var _bc_btn_attack: Button = %BtnBCAttack
+@onready var _bc_btn_attack: AttackCooldownButton = %BtnBCAttack
 @onready var _bc_btn_loot: Button = %BtnBCLoot
 @onready var _bc_btn_trade: Button = %BtnBCTrade
 @onready var _bc_btn_inspect: Button = %BtnBCInspect
@@ -166,7 +166,7 @@ var _selection_world_node: Node = null
 var _selection_portrait_source: String = "none"
 var _selection_inventory_snapshot: Dictionary = {}
 ## Panel B.c: per-character directed attack (persists when focus changes).
-## character_id -> { "enemy_iid": int, "last_strike_ms": int }
+## character_id -> { "enemy_iid": int, "last_strike_ms": int, "order_started_ms": int }
 var _ui_attack_orders: Dictionary = {}
 var _spell_cast_busy: bool = false
 var _spell_cast_elapsed_ms: float = 0.0
@@ -180,6 +180,9 @@ var _attack_no_target_not_before_ms: Dictionary = {}
 var _bd_spell_selection_by_character: Dictionary = {}
 var _inspect_dialog: AcceptDialog = null
 var _inspect_body: RichTextLabel = null
+var _selection_inspect_last_refresh_ms: int = 0
+var _selection_inspect_dirty: bool = false
+const _SELECTION_INSPECT_REFRESH_MS: int = 2000
 var _spell_book_dialog: AcceptDialog = null
 
 
@@ -234,11 +237,14 @@ func _physics_process(delta: float) -> void:
 	_sync_trade_positions_from_world()
 	_tick_player_spell_cast(delta)
 	_tick_ui_directed_attack(delta)
+	_refresh_bc_attack_cooldown_fill()
 	_tick_hostile_enemies(delta)
 	_prune_corpse_markers()
 	_tick_passive_mana_regen(delta)
 	_refresh_bc_meditate_button_label()
 	_refresh_hud_vitals()
+	_refresh_selection_vitals_ui()
+	_tick_selection_inspect_refresh()
 
 
 func _option_button_clear_all(ob: OptionButton) -> void:
@@ -482,6 +488,16 @@ func _apply_shell_theme() -> void:
 		_bb_bar_st.add_theme_stylebox_override("fill", fill_st.duplicate() as StyleBoxFlat)
 	if _bb_bar_mn != null:
 		_bb_bar_mn.add_theme_stylebox_override("fill", fill_mn.duplicate() as StyleBoxFlat)
+	if _bc_btn_attack != null:
+		var atk_btn_bg: StyleBoxFlat = btn_normal.duplicate() as StyleBoxFlat
+		atk_btn_bg.bg_color = Color(0.1, 0.11, 0.135, 1.0)
+		_bc_btn_attack.add_theme_stylebox_override("normal", atk_btn_bg)
+		var atk_btn_hover: StyleBoxFlat = tab_focus.duplicate() as StyleBoxFlat
+		atk_btn_hover.bg_color = Color(0.14, 0.15, 0.19, 1.0)
+		_bc_btn_attack.add_theme_stylebox_override("hover", atk_btn_hover)
+		_bc_btn_attack.add_theme_stylebox_override(
+			"pressed", atk_btn_bg.duplicate() as StyleBoxFlat
+		)
 
 
 func _setup_tab_buttons() -> void:
@@ -1952,11 +1968,21 @@ func _apply_pc_hit_on_enemy_node(
 	var dt: int = int(ctx.get("damage_type", DamageTypes.Id.SLASHING))
 	var dmin: int = int(ctx.get("dmg_min", 0))
 	var dmax: int = int(ctx.get("dmg_max", 0))
-	var res: Dictionary = _combat.resolve_melee_hit(atk_stats, enemy_stats, dt, dmin, dmax)
-	var dmg: float = float(res.get("damage", 0.0))
 	var tgt_label: String = str(best.name)
 	if tgt_label.is_empty():
 		tgt_label = "target"
+	var res: Dictionary = _combat.resolve_melee_hit(atk_stats, enemy_stats, dt, dmin, dmax)
+	if not bool(res.get("hit", true)):
+		outcome["handled"] = true
+		outcome["struck"] = false
+		if to_feed:
+			_append_command_feed(
+				"%s %s's attack was evaded by %s" % [feed_prefix, String(attacker_id), tgt_label],
+				attacker_id
+			)
+		_touch_selection_combat_activity(attacker_id, &"", best)
+		return outcome
+	var dmg: float = float(res.get("damage", 0.0))
 	var survived: bool = bool(best.call("take_damage", dmg, attacker_id))
 	outcome["handled"] = true
 	outcome["struck"] = dmg > 0.0
@@ -1976,6 +2002,7 @@ func _apply_pc_hit_on_enemy_node(
 		_award_kill_experience_split(xp_award, attacker_id, to_feed, feed_prefix)
 	_refresh_hud_vitals()
 	_refresh_party_cards()
+	_touch_selection_combat_activity(attacker_id, &"", best)
 	return outcome
 
 
@@ -1987,6 +2014,62 @@ func _attack_cooldown_ms(character_id: StringName) -> int:
 		return 5000
 	var st: Dictionary = _stats.get_effective_stats(character_id, data, _equipment)
 	return maxi(250, int(round(float(st.get("melee_attack_interval_sec", 5.0)) * 1000.0)))
+
+
+func _attack_order_cooldown_anchor_ms(order: Dictionary) -> int:
+	var last_ms: int = int(order.get("last_strike_ms", 0))
+	if last_ms > 0:
+		return last_ms
+	return int(order.get("order_started_ms", 0))
+
+
+func _attack_cooldown_progress(character_id: StringName) -> float:
+	if character_id == &"" or not _ui_attack_orders.has(character_id):
+		return 0.0
+	var order: Dictionary = _ui_attack_orders[character_id] as Dictionary
+	var anchor_ms: int = _attack_order_cooldown_anchor_ms(order)
+	var cd_ms: int = _attack_cooldown_ms(character_id)
+	if anchor_ms <= 0 or cd_ms <= 0:
+		return 0.0
+	var elapsed: int = Time.get_ticks_msec() - anchor_ms
+	return clampf(float(elapsed) / float(cd_ms), 0.0, 1.0)
+
+
+func _bc_attack_fill_ratio() -> float:
+	if _focus_character_id == &"":
+		return 0.0
+	if _spell_cast_busy and _spell_cast_attacker_id == _focus_character_id:
+		if _spell_cast_duration_ms <= 0.0:
+			return 1.0
+		return clampf(_spell_cast_elapsed_ms / _spell_cast_duration_ms, 0.0, 1.0)
+	return _attack_cooldown_progress(_focus_character_id)
+
+
+func _bc_attack_uses_cast_fill() -> bool:
+	if _spell_cast_busy and _spell_cast_attacker_id == _focus_character_id:
+		return true
+	if _focus_character_id == &"" or _catalog == null or _equipment == null:
+		return false
+	var main_def: Resource = WeaponItemUtils.main_hand_definition(
+		_focus_character_id, _equipment, _catalog
+	)
+	if not WeaponItemUtils.is_casting_weapon(main_def):
+		return false
+	var mode: String = str(_attack_context_for(_focus_character_id).get("mode", "none"))
+	return mode in ["casting", "casting_support", "casting_no_spell"]
+
+
+func _refresh_bc_attack_cooldown_fill() -> void:
+	if _bc_btn_attack == null:
+		return
+	if not _bc_btn_attack.visible:
+		_bc_btn_attack.set_cooldown_ratio(0.0)
+		return
+	if _bc_attack_uses_cast_fill():
+		_bc_btn_attack.set_fill_color(AttackCooldownButton.FILL_CAST)
+	else:
+		_bc_btn_attack.set_fill_color(AttackCooldownButton.FILL_ATTACK)
+	_bc_btn_attack.set_cooldown_ratio(_bc_attack_fill_ratio())
 
 
 func _party_character_id_from_world_body(node: Node2D) -> StringName:
@@ -2035,6 +2118,17 @@ func _apply_pc_offensive_spell_on_party_actor(
 	var dmin: int = int(ctx.get("dmg_min", 0))
 	var dmax: int = int(ctx.get("dmg_max", 0))
 	var res: Dictionary = _combat.resolve_melee_hit(atk_stats, def_stats, dt, dmin, dmax)
+	if not bool(res.get("hit", true)):
+		outcome["handled"] = true
+		outcome["struck"] = false
+		if to_feed:
+			var evade_line: String = (
+				"%s %s's attack was evaded by %s"
+				% [feed_prefix, String(attacker_id), String(target_id)]
+			)
+			_append_command_feed(evade_line, attacker_id)
+			_append_command_feed(evade_line, target_id)
+		return outcome
 	var dmg: float = float(res.get("damage", 0.0))
 	_combat.apply_vitals_damage(_registry, _stats, target_id, dmg)
 	outcome["handled"] = true
@@ -2160,6 +2254,7 @@ func _apply_pc_support_spell_on_party_actor(
 		_append_command_feed(sup_line, target_id)
 	_refresh_hud_vitals()
 	_refresh_party_cards()
+	_touch_selection_combat_activity(attacker_id, target_id)
 	return outcome
 
 
@@ -2236,6 +2331,15 @@ func _resolve_enemy_melee_exchange(enemy: Node2D, victim_id: StringName) -> void
 	var wmax: int = int(enemy_stats.get("weapon_damage_max", 0))
 	var edt: int = int(enemy_stats.get("damage_type", DamageTypes.Id.SLASHING))
 	var res: Dictionary = _combat.resolve_melee_hit(enemy_stats, vic_stats, edt, wmin, wmax)
+	if not bool(res.get("hit", true)):
+		var elabel_miss: String = str(enemy.name)
+		if elabel_miss.is_empty():
+			elabel_miss = "enemy"
+		_append_command_feed(
+			"[combat] %s's attack was evaded by %s" % [elabel_miss, String(victim_id)], victim_id
+		)
+		_touch_selection_combat_activity(&"", victim_id, enemy)
+		return
 	var dmg: float = float(res.get("damage", 0.0))
 	var victim_node: Node2D = _world_actor_by_id.get(victim_id) as Node2D
 	var death_res: Dictionary = _combat.apply_vitals_damage(_registry, _stats, victim_id, dmg)
@@ -2253,6 +2357,7 @@ func _resolve_enemy_melee_exchange(enemy: Node2D, victim_id: StringName) -> void
 	)
 	_refresh_hud_vitals()
 	_refresh_party_cards()
+	_touch_selection_combat_activity(&"", victim_id, enemy)
 
 
 func _spawn_enemy_corpse(enemy: Node2D) -> void:
@@ -4056,13 +4161,6 @@ func _show_selection_context_menu_at(global_position: Vector2) -> void:
 				if atk_ix_a >= 0:
 					pm.set_item_disabled(atk_ix_a, not can_cast_a or cast_busy_a)
 				added += 1
-		if _focus_character_id != &"" and _registry != null:
-			var fd: Resource = _registry.get_character(_focus_character_id)
-			var wa: Node = _world_actor_by_id.get(_focus_character_id) as Node
-			if fd != null and bool(fd.is_logged_in) and wa != null:
-				var med_lbl: String = "Stop meditation" if bool(wa.is_meditating) else "Meditate"
-				pm.add_item(med_lbl, _SEL_CTX_MEDITATE)
-				added += 1
 		if _selection_world_kind == "corpse":
 			pm.add_item("Loot corpse", _SEL_CTX_LOOT)
 			added += 1
@@ -5035,17 +5133,10 @@ func _refresh_selection_portrait() -> void:
 			return
 		if _selection_world_kind == "enemy":
 			_bb_title.text = "Enemy"
-			if _selection_world_node.get_script() == _CombatTestEnemyScr:
-				## Object.get() only accepts the property name; use fallbacks manually.
-				var cur: float = _node_get_float(_selection_world_node, &"current_health", 0.0)
-				var mx: float = _node_get_float(_selection_world_node, &"max_health", 1.0)
-				var xp: int = _node_get_int(_selection_world_node, &"xp_reward", 0)
-				_bb_subtitle.text = "HP %.0f / %.0f · +%d XP" % [cur, mx, xp]
-			else:
-				_bb_subtitle.text = String(_selection_world_node.name)
 			_bb_portrait.texture = null
 			_bb_fallback.color = Color(0.62, 0.22, 0.22, 1.0)
 			_bb_fallback.visible = true
+			_refresh_selection_enemy_subtitle()
 			_sync_ui_attack_to_selection()
 			_refresh_panel_b_auxiliary()
 			return
@@ -5103,7 +5194,12 @@ func _set_ui_attack_order(character_id: StringName, active: bool, enemy_iid: int
 	if character_id == &"":
 		return
 	if active and enemy_iid != 0:
-		_ui_attack_orders[character_id] = {"enemy_iid": enemy_iid, "last_strike_ms": 0}
+		var now_ms: int = Time.get_ticks_msec()
+		_ui_attack_orders[character_id] = {
+			"enemy_iid": enemy_iid,
+			"last_strike_ms": 0,
+			"order_started_ms": now_ms,
+		}
 	else:
 		_ui_attack_orders.erase(character_id)
 		var act: Node = _world_actor_by_id.get(character_id) as Node
@@ -5187,6 +5283,8 @@ func _try_start_player_spell_cast() -> void:
 	var sid: StringName = ctx.get("spell_id", &"") as StringName
 	_append_command_feed("[ui] Casting %s…" % MagicRules.spell_display_name(sid))
 	_refresh_panel_b_auxiliary()
+	var victim_id: StringName = _selection_world_id if is_actor else &""
+	_touch_selection_combat_activity(_focus_character_id, victim_id, target if is_enemy else null)
 
 
 func _tick_player_spell_cast(delta: float) -> void:
@@ -5297,6 +5395,7 @@ func _sync_ui_attack_to_selection() -> void:
 	if int(order.get("enemy_iid", 0)) != sel_iid:
 		order["enemy_iid"] = sel_iid
 		order["last_strike_ms"] = 0
+		order["order_started_ms"] = Time.get_ticks_msec()
 		_ui_attack_orders[_focus_character_id] = order
 
 
@@ -5337,8 +5436,8 @@ func _tick_ui_directed_attack(_delta: float) -> void:
 			else:
 				actor.call("set_hunt_navigation_active", false)
 		var order: Dictionary = _ui_attack_orders[attacker_id] as Dictionary
-		var last_ms: int = int(order.get("last_strike_ms", 0))
-		if now - last_ms < _attack_cooldown_ms(attacker_id):
+		var anchor_ms: int = _attack_order_cooldown_anchor_ms(order)
+		if anchor_ms <= 0 or now - anchor_ms < _attack_cooldown_ms(attacker_id):
 			continue
 		var outcome: Dictionary = _perform_melee_against_node(attacker_id, enemy, true, "[attack]")
 		if bool(outcome.get("struck", false)):
@@ -5347,6 +5446,73 @@ func _tick_ui_directed_attack(_delta: float) -> void:
 	for sid in stale:
 		if sid != &"":
 			_set_ui_attack_order(sid, false)
+
+
+func _touch_selection_combat_activity(
+	attacker_character_id: StringName = &"",
+	victim_character_id: StringName = &"",
+	enemy_node: Node = null,
+) -> void:
+	if _selection_portrait_source != "world":
+		return
+	var relevant: bool = false
+	match _selection_world_kind:
+		"actor":
+			if _selection_world_id != &"":
+				if (
+					_selection_world_id == attacker_character_id
+					or _selection_world_id == victim_character_id
+				):
+					relevant = true
+		"enemy":
+			if _selection_world_node != null and enemy_node == _selection_world_node:
+				relevant = true
+	if relevant:
+		_selection_inspect_dirty = true
+	_refresh_selection_vitals_ui()
+
+
+func _refresh_selection_enemy_subtitle() -> void:
+	if _bb_subtitle == null or _selection_world_kind != "enemy" or _selection_world_node == null:
+		return
+	if _selection_world_node.get_script() == _CombatTestEnemyScr:
+		var cur: float = _node_get_float(_selection_world_node, &"current_health", 0.0)
+		var mx: float = _node_get_float(_selection_world_node, &"max_health", 1.0)
+		var xp: int = _node_get_int(_selection_world_node, &"xp_reward", 0)
+		_bb_subtitle.text = "HP %.0f / %.0f · +%d XP" % [cur, mx, xp]
+	else:
+		_bb_subtitle.text = String(_selection_world_node.name)
+
+
+func _refresh_selection_vitals_ui() -> void:
+	if _selection_portrait_source != "world":
+		return
+	if _selection_world_kind == "enemy":
+		_refresh_bb_vitals_bars()
+		_refresh_selection_enemy_subtitle()
+	elif _selection_world_kind == "actor":
+		_refresh_bb_vitals_bars()
+
+
+func _refresh_inspect_dialog_content() -> void:
+	if _inspect_body == null:
+		return
+	_inspect_body.clear()
+	_inspect_body.parse_bbcode(_build_inspect_text())
+
+
+func _tick_selection_inspect_refresh() -> void:
+	if _inspect_dialog == null or not _inspect_dialog.visible:
+		return
+	var now_ms: int = Time.get_ticks_msec()
+	if (
+		not _selection_inspect_dirty
+		and (now_ms - _selection_inspect_last_refresh_ms) < _SELECTION_INSPECT_REFRESH_MS
+	):
+		return
+	_refresh_inspect_dialog_content()
+	_selection_inspect_last_refresh_ms = now_ms
+	_selection_inspect_dirty = false
 
 
 func _refresh_panel_b_auxiliary() -> void:
@@ -5501,6 +5667,7 @@ func _refresh_bc_action_row() -> void:
 	)
 	_bc_btn_inspect.visible = show_inspect
 	_bc_btn_inspect.disabled = not show_inspect
+	_refresh_bc_attack_cooldown_fill()
 
 
 func _rebuild_panel_bd_spells() -> void:
@@ -6107,9 +6274,9 @@ func _build_inspect_text() -> String:
 
 func _on_bc_inspect_pressed() -> void:
 	_ensure_inspect_dialog()
-	if _inspect_body != null:
-		_inspect_body.clear()
-		_inspect_body.parse_bbcode(_build_inspect_text())
+	_refresh_inspect_dialog_content()
+	_selection_inspect_last_refresh_ms = Time.get_ticks_msec()
+	_selection_inspect_dirty = false
 	_inspect_dialog.popup_centered()
 
 
