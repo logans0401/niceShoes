@@ -1,0 +1,22 @@
+NiceShoes — third-party notices
+================================
+
+This project includes or depends on the following third-party components.
+See LICENSE for the MIT terms covering original NiceShoes source code
+(Copyright (c) 2026 Xogma).
+
+Runtime (not bundled in this repository)
+--------------------------------------
+- Godot Engine 4.x — MIT License
+  https://github.com/godotengine/godot/blob/master/LICENSE.txt
+
+Development tools (not required to play exported builds)
+--------------------------------------------------------
+- gdtoolkit (gdformat, gdlint) — MIT License
+  https://github.com/Scony/godot-gdscript-toolkit
+
+Original assets in this repository
+----------------------------------
+- Placeholder world sprites under assets/sprites/world/ — original to this project
+- icon.svg — original to this project
+- Review PNGs under review/ — generated for development review only

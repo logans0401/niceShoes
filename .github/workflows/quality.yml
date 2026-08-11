@@ -1,0 +1,34 @@
+name: Quality
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  gdscript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install gdtoolkit
+        run: pip install "gdtoolkit>=4.5,<5"
+
+      - name: Format check
+        run: gdformat --check .
+
+      - name: Lint
+        run: gdlint .
+
+      - name: Setup Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.6.2
+          include-templates: false
+
+      - name: Headless tests
+        run: godot --headless --path . -s res://tests/test_harness.gd
