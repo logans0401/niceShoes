@@ -31,5 +31,8 @@ jobs:
           include-templates: false
           use-dotnet: false
 
+      - name: Import project
+        run: godot --headless --path . --import --quit
+
       - name: Headless tests
         run: godot --headless --path . -s res://tests/test_harness.gd
