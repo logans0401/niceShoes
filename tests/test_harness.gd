@@ -820,12 +820,15 @@ func _test_enemy_stat_generation() -> bool:
 	var saw_level_three: bool = false
 	var saw_skill_ranks: bool = false
 	for _i in range(32):
-		var esb: GDScript = EnemyStatBuilderScr as GDScript
-		var built: Dictionary = esb.call_static("build", rng, balance) as Dictionary
+		var built: Dictionary = (
+			Callable(EnemyStatBuilderScr, &"build").call(rng, balance) as Dictionary
+		)
 		var data: Resource = built["data"] as Resource
 		var derived: Dictionary = built["derived"] as Dictionary
 		var attrs: Dictionary = data.attributes as Dictionary
-		var spent: int = int(esb.call_static("attribute_points_spent_above_floor", attrs))
+		var spent: int = int(
+			Callable(EnemyStatBuilderScr, &"attribute_points_spent_above_floor").call(attrs)
+		)
 		if spent > EnemyStatBuilderScr.ATTR_POINT_POOL:
 			return false
 		for attr in CharacterSchemaScr.ALL_ATTRIBUTES:
