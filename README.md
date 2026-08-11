@@ -33,4 +33,4 @@ Third-party notices: [NOTICE](NOTICE).
 
 ## Rights
 
-Copyright (c) 2026 Xogma. All rights reserved where not explicitly granted by LICENSE.
+Copyright (c) 2026 [logans0401](https://github.com/logans0401). All rights reserved where not explicitly granted by LICENSE.
